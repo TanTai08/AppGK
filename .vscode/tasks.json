@@ -2,13 +2,6 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "AppGK: Backend",
-      "type": "npm",
-      "script": "server",
-      "isBackground": true,
-      "problemMatcher": []
-    },
-    {
       "label": "AppGK: Android Pixel 7",
       "type": "npm",
       "script": "android",

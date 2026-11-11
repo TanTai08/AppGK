@@ -4,3 +4,8 @@ dist/
 .env
 server/data/
 work/
+
+android-export/
+
+*-debug.log
+firebase-debug.log

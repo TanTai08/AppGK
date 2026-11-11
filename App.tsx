@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  Image,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -12,6 +13,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { configured } from "./src/firebase";
 import { StatusBar } from "expo-status-bar";
 import { AppProvider, Product, useStore } from "./src/store";
 const money = (n: number) => n.toLocaleString("vi-VN") + " ₫";
@@ -78,9 +81,8 @@ function Field({
   );
 }
 function Auth() {
-  const { authenticate, loadError, restore } = useStore();
+  const { authenticate } = useStore();
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -89,7 +91,7 @@ function Auth() {
     setBusy(true);
     setError("");
     try {
-      await authenticate(mode, { name, email: email.trim(), password });
+      await authenticate(mode, { email: email.trim(), password });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -122,9 +124,6 @@ function Auth() {
             </Pressable>
           ))}
         </View>
-        {mode === "register" && (
-          <Field label="Họ và tên" value={name} onChangeText={setName} />
-        )}
         <Field label="Email" value={email} onChangeText={setEmail} />
         <Field
           label="Mật khẩu"
@@ -140,16 +139,6 @@ function Auth() {
             {error}
           </Text>
         )}
-        {!!loadError && (
-          <View>
-            <Text style={s.error}>{loadError}</Text>
-            <Button
-              secondary
-              title="Khôi phục phiên đăng nhập"
-              onPress={() => void restore()}
-            />
-          </View>
-        )}
         <Button
           title={
             busy
@@ -162,18 +151,20 @@ function Auth() {
           disabled={busy}
         />
         <Text style={[s.muted, { textAlign: "center", marginTop: 22 }]}>
-          Sản phẩm của bạn được lưu riêng theo tài khoản.
+          Phân hệ quản trị sản phẩm · Firebase
         </Text>
       </View>
     </ScrollView>
   );
 }
 function Dashboard() {
-  const { user, products, loadError, save, remove, logout } = useStore();
+  const { user, products, productsLoading, loadError, save, remove, logout } =
+    useStore();
   const [editor, setEditor] = useState<Product | "new" | null>(null);
   const [deleting, setDeleting] = useState<Product | null>(null);
   const [name, setName] = useState("");
-  const [sku, setSku] = useState("");
+  const [image, setImage] = useState("");
+  const [picking, setPicking] = useState(false);
   const [price, setPrice] = useState("");
   const [quantity, setQuantity] = useState("");
   const [error, setError] = useState("");
@@ -183,19 +174,48 @@ function Dashboard() {
     setEditor(p);
     setFormError("");
     setName(p === "new" ? "" : p.name);
-    setSku(p === "new" ? "" : p.sku);
+    setImage(p === "new" ? "" : p.image);
     setPrice(p === "new" ? "" : String(p.price));
-    setQuantity(p === "new" ? "" : String(p.quantity));
+    setQuantity(p === "new" ? "" : String(p.soluong));
+  }
+  async function pickImage() {
+    setPicking(true);
+    setFormError("");
+    try {
+      if (Platform.OS !== "web") {
+        const permission =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted)
+          throw new Error("Vui lòng cấp quyền truy cập ảnh cho ứng dụng.");
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        base64: true,
+        quality: 0.6,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      if (!asset.base64 || asset.base64.length > 933336)
+        throw new Error("Ảnh quá lớn. Hãy chọn ảnh nhỏ hơn 700 KB.");
+      const mime = asset.mimeType || "image/jpeg";
+      if (!["image/jpeg", "image/png", "image/webp"].includes(mime))
+        throw new Error("Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.");
+      setImage(`data:${mime};base64,${asset.base64}`);
+    } catch (error) {
+      setFormError((error as Error).message);
+    } finally {
+      setPicking(false);
+    }
   }
   async function submit() {
     if (
       !name.trim() ||
-      !sku.trim() ||
-      !/^\d+$/.test(price) ||
+      !image ||
+      !/^(\d+)(\.\d{1,2})?$/.test(price) ||
       !/^\d+$/.test(quantity)
     ) {
       setFormError(
-        "Điền đủ thông tin. Giá và số lượng phải là số nguyên không âm.",
+        "Điền đủ thông tin và chọn ảnh. Giá không âm; số lượng phải là số nguyên không âm.",
       );
       return;
     }
@@ -203,8 +223,8 @@ function Dashboard() {
     setFormError("");
     try {
       await save(
-        { name, sku, price: Number(price), quantity: Number(quantity) },
-        editor && editor !== "new" ? editor.id : undefined,
+        { name, image, price: Number(price), soluong: Number(quantity) },
+        editor && editor !== "new" ? editor.key : undefined,
       );
       setEditor(null);
     } catch (e) {
@@ -232,7 +252,7 @@ function Dashboard() {
       <View style={s.header}>
         <Text style={s.brand}>◈ KHO HÀNG</Text>
         <View style={s.row}>
-          <Text style={s.muted}>{user?.name}</Text>
+          <Text style={s.muted}>{user?.email}</Text>
           <Button
             title="Đăng xuất"
             secondary
@@ -255,7 +275,13 @@ function Dashboard() {
         </Text>
       )}
       <View style={s.panel}>
-        {!products.length ? (
+        {productsLoading ? (
+          <ActivityIndicator color="#275c46" />
+        ) : loadError ? (
+          <Text style={s.muted}>
+            Chưa tải được dữ liệu. Kiểm tra quyền admin và kết nối Firebase.
+          </Text>
+        ) : !products.length ? (
           <View style={s.empty}>
             <Text style={s.emptyTitle}>Chưa có sản phẩm</Text>
             <Text style={s.muted}>Thêm sản phẩm đầu tiên để bắt đầu.</Text>
@@ -266,18 +292,17 @@ function Dashboard() {
           </View>
         ) : (
           products.map((p) => (
-            <View key={p.id} style={s.product}>
-              <View style={s.productIcon}>
-                <Text style={{ fontSize: 24, color: "#3a6957" }}>
-                  {p.name[0].toUpperCase()}
-                </Text>
-              </View>
+            <View key={p.key} style={s.product}>
+              <Image
+                source={{ uri: p.image }}
+                accessibilityLabel={`Ảnh ${p.name}`}
+                style={{ width: 88, height: 88, borderRadius: 12 }}
+                resizeMode="cover"
+              />
               <View style={{ flex: 1, minWidth: 150 }}>
                 <Text style={s.productName}>{p.name}</Text>
-                <Text style={s.muted}>
-                  {p.sku} · {money(p.price)}
-                </Text>
-                <Text style={s.stock}>Số lượng: {p.quantity}</Text>
+                <Text style={s.muted}>{money(p.price)}</Text>
+                <Text style={s.stock}>Số lượng: {p.soluong}</Text>
               </View>
               <View style={s.row}>
                 <Button title="Sửa" secondary onPress={() => open(p)} />
@@ -300,118 +325,176 @@ function Dashboard() {
       <Text style={[s.muted, { marginTop: 24 }]}>
         KHO HÀNG · Đơn giản mỗi ngày
       </Text>
-      <Modal
-        visible={editor !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          if (!busy) setEditor(null);
-        }}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={s.overlay}
+      {editor !== null && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            if (!busy) setEditor(null);
+          }}
         >
-          <ScrollView
-            contentContainerStyle={s.modalScroll}
-            keyboardShouldPersistTaps="handled"
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={s.overlay}
           >
-            <View style={s.modalCard}>
-              <Text style={s.modalTitle}>
-                {editor === "new" ? "Thêm sản phẩm" : "Sửa sản phẩm"}
-              </Text>
-              <Text style={[s.muted, { marginBottom: 24 }]}>
-                Thông tin rõ ràng, quản lý dễ dàng.
-              </Text>
-              <Field label="Tên sản phẩm" value={name} onChangeText={setName} />
-              <Field
-                label="Mã sản phẩm (SKU)"
-                value={sku}
-                onChangeText={setSku}
-              />
-              <Field
-                label="Giá bán (VNĐ)"
-                value={price}
-                onChangeText={setPrice}
-                numeric
-              />
-              <Field
-                label="Số lượng"
-                value={quantity}
-                onChangeText={setQuantity}
-                numeric
-              />
-              {!!formError && (
-                <Text accessibilityRole="alert" style={s.error}>
-                  {formError}
+            <ScrollView
+              contentContainerStyle={s.modalScroll}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={s.modalCard}>
+                <Text style={s.modalTitle}>
+                  {editor === "new" ? "Thêm sản phẩm" : "Sửa sản phẩm"}
                 </Text>
-              )}
+                <Text style={[s.muted, { marginBottom: 24 }]}>
+                  Thông tin rõ ràng, quản lý dễ dàng.
+                </Text>
+                <Field
+                  label="Tên sản phẩm"
+                  value={name}
+                  onChangeText={setName}
+                />
+                <Field
+                  label="Giá bán (VNĐ)"
+                  value={price}
+                  onChangeText={setPrice}
+                  numeric
+                />
+                <Field
+                  label="Số lượng"
+                  value={quantity}
+                  onChangeText={setQuantity}
+                  numeric
+                />
+                <Text style={s.label}>Hình ảnh sản phẩm (JPG, PNG, WebP)</Text>
+                {!!image && (
+                  <Image
+                    source={{ uri: image }}
+                    accessibilityLabel="Ảnh đã chọn"
+                    style={{
+                      width: "100%",
+                      height: 160,
+                      marginBottom: 12,
+                      borderRadius: 10,
+                    }}
+                    resizeMode="contain"
+                  />
+                )}
+                <Button
+                  title={
+                    picking
+                      ? "Đang chọn ảnh…"
+                      : image
+                        ? "Đổi hình ảnh"
+                        : "Chọn hình ảnh"
+                  }
+                  secondary
+                  disabled={busy || picking}
+                  onPress={() => void pickImage()}
+                />
+                <Text style={[s.muted, { marginVertical: 10 }]}>
+                  Ảnh dưới 700 KB. Ảnh được lưu trực tiếp cùng sản phẩm.
+                </Text>
+                {!!formError && (
+                  <Text accessibilityRole="alert" style={s.error}>
+                    {formError}
+                  </Text>
+                )}
+                <View style={s.row}>
+                  <Button
+                    title="Hủy"
+                    secondary
+                    disabled={busy}
+                    onPress={() => setEditor(null)}
+                  />
+                  <Button
+                    title={busy ? "Đang lưu…" : "Lưu sản phẩm"}
+                    disabled={busy || picking}
+                    onPress={() => void submit()}
+                  />
+                </View>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
+      {deleting !== null && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            if (!busy) setDeleting(null);
+          }}
+        >
+          <View style={s.overlay}>
+            <View style={s.modalCard}>
+              <Text style={s.modalTitle}>Xóa sản phẩm?</Text>
+              <Text style={[s.muted, { marginVertical: 20 }]}>
+                Bạn muốn xóa “{deleting?.name}”? Thao tác này không thể hoàn
+                tác.
+              </Text>
+              {!!error && <Text style={s.error}>{error}</Text>}
               <View style={s.row}>
                 <Button
-                  title="Hủy"
+                  title="Giữ lại"
                   secondary
                   disabled={busy}
-                  onPress={() => setEditor(null)}
+                  onPress={() => setDeleting(null)}
                 />
                 <Button
-                  title={busy ? "Đang lưu…" : "Lưu sản phẩm"}
+                  title={busy ? "Đang xóa…" : "Xác nhận xóa"}
                   disabled={busy}
-                  onPress={() => void submit()}
+                  onPress={() =>
+                    void act(async () => {
+                      await remove(deleting!.key);
+                      setDeleting(null);
+                    })
+                  }
                 />
               </View>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </Modal>
-      <Modal
-        visible={!!deleting}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          if (!busy) setDeleting(null);
-        }}
-      >
-        <View style={s.overlay}>
-          <View style={s.modalCard}>
-            <Text style={s.modalTitle}>Xóa sản phẩm?</Text>
-            <Text style={[s.muted, { marginVertical: 20 }]}>
-              Bạn muốn xóa “{deleting?.name}”? Thao tác này không thể hoàn tác.
-            </Text>
-            {!!error && <Text style={s.error}>{error}</Text>}
-            <View style={s.row}>
-              <Button
-                title="Giữ lại"
-                secondary
-                disabled={busy}
-                onPress={() => setDeleting(null)}
-              />
-              <Button
-                title={busy ? "Đang xóa…" : "Xác nhận xóa"}
-                disabled={busy}
-                onPress={() =>
-                  void act(async () => {
-                    await remove(deleting!.id);
-                    setDeleting(null);
-                  })
-                }
-              />
-            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
     </ScrollView>
   );
 }
 function Root() {
-  const { loading, user } = useStore();
+  const { loading, user, isAdmin, logout } = useStore();
   return (
     <SafeAreaView style={s.root}>
       <StatusBar style="dark" />
-      {loading ? (
+      {!configured ? (
+        <ScrollView contentContainerStyle={s.authWrap}>
+          <View style={s.authCard}>
+            <Text style={s.modalTitle}>Thiết lập Firebase</Text>
+            <Text style={[s.muted, { marginTop: 16 }]}>
+              Chưa có cấu hình Firebase. Làm theo README: tạo dự án, bật
+              Authentication và Realtime Database, nhập database/products.json
+              rồi điền .env. Sau đó khởi động lại Expo.
+            </Text>
+          </View>
+        </ScrollView>
+      ) : loading ? (
         <View style={s.empty}>
           <ActivityIndicator color="#275c46" />
           <Text style={s.muted}>Đang tải dữ liệu…</Text>
         </View>
+      ) : user && !isAdmin ? (
+        <ScrollView contentContainerStyle={s.authWrap}>
+          <View style={s.authCard}>
+            <Text style={s.modalTitle}>Tài khoản chưa có quyền admin</Text>
+            <Text style={[s.muted, { marginVertical: 16 }]}>
+              Nhờ người quản trị cấp quyền cho tài khoản này. Nếu bạn đang thiết
+              lập bài tập, sao chép UID vào .env và Database Rules theo README.
+            </Text>
+            <Text selectable style={{ marginBottom: 20 }}>
+              {user.uid}
+            </Text>
+            <Button title="Đăng xuất" onPress={() => void logout()} />
+          </View>
+        </ScrollView>
       ) : user ? (
         <Dashboard />
       ) : (

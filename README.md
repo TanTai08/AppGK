@@ -1,19 +1,52 @@
-# AppGK — Kho Hàng
+# AppGK — Phân hệ admin sản phẩm
 
-Ứng dụng quản lý sản phẩm đơn giản bằng **React Native + Expo + TypeScript**, chạy chung mã trên Android, iOS và web. Backend **Express + SQLite**, yêu cầu **Node.js 24 LTS**.
+React Native + Expo + TypeScript, chạy web và Android/iOS. Cơ sở dữ liệu **Firebase Realtime Database**; đăng nhập/đăng ký dùng **Firebase Authentication**. Đây là lựa chọn React Native trong đề, không phải dự án .NET MAUI.
 
-## Chạy bằng VS Code trên Windows và máy ảo Pixel 7
+## Đáp ứng đề bài
 
-### 1. Cài công cụ
+| Yêu cầu                            | Thực hiện                                                     |
+| ---------------------------------- | ------------------------------------------------------------- |
+| Nhập và hiển thị sản phẩm trên web | Form + danh sách có tên, giá, số lượng, hình ảnh              |
+| Firebase hoặc MongoDB              | Firebase Realtime Database                                    |
+| Đăng nhập, sửa, xóa                | Email/password, sửa form, xác nhận xóa                        |
+| Nhập và hiển thị ảnh trên di động  | Expo ImagePicker, React Native Image                          |
+| Phân hệ admin                      | Database Rules chỉ cho UID quản trị được đọc/ghi              |
+| File CSDL bắt buộc                 | `database/products.json`, chứa 3 sản phẩm và ảnh nhúng đầy đủ |
+| Chỉ bốn trường                     | `name`, `price`, `soluong`, `image`                           |
 
-- Node.js **24 LTS** (`node -v` phải hiển thị `v24...`), Git và Visual Studio Code.
-- Android Studio → SDK Manager: cài Android SDK Platform, Android SDK Platform-Tools và Android Emulator.
-- Android Studio → Device Manager → Create Device → **Pixel 7** → chọn Android API 35 với Google APIs → Finish → nhấn ▶. Chờ Android khởi động hoàn toàn.
-- Trên Windows, đặt biến `ANDROID_HOME` thành đường dẫn SDK hiển thị trong SDK Manager (thường là `%LOCALAPPDATA%\Android\Sdk`) và thêm `%ANDROID_HOME%\platform-tools` vào `Path`. Mở lại VS Code sau khi sửa biến môi trường.
+Mỗi bản ghi có đúng bốn trường. `sp01` hoặc khóa do Firebase `push()` sinh ra là **khóa của node**, không phải thuộc tính của sản phẩm. Không có `id`, `sku`, `quantity`, `user_id`, thời gian tạo hoặc trường phụ trong bản ghi. Tài khoản nằm trong dịch vụ Authentication, không tạo bảng tài khoản trong database.
 
-### 2. Mở đúng thư mục
+```json
+{
+  "products": {
+    "sp01": {
+      "name": "Cà phê rang",
+      "price": 85000,
+      "soluong": 20,
+      "image": "data:image/png;base64,..."
+    }
+  }
+}
+```
 
-Nếu chưa tải mã nguồn, chạy PowerShell:
+Đoạn trên minh họa; file nộp `database/products.json` có dữ liệu ảnh base64 hoàn chỉnh, không có dấu `...`. Ảnh mẫu là minh họa tự tạo. Ảnh chọn từ máy/điện thoại được lưu dạng data URI, tối đa 700 KB, nên JSON xuất ra có luôn ảnh, không phụ thuộc Firebase Storage hay file trên máy. Cách này phù hợp bài tập nhỏ; tải toàn bộ danh sách/ảnh không phù hợp kho lớn.
+
+## 1. Tạo Firebase (chỉ cần làm một lần)
+
+1. Mở https://console.firebase.google.com → Create a project. Có thể tắt Google Analytics. Dùng gói Spark cho bài tập nhỏ.
+2. Project settings → General → Your apps → chọn biểu tượng **Web `</>`**, đăng ký app. Sao chép các giá trị `firebaseConfig`.
+3. Build → Authentication → Get started → Sign-in method → bật **Email/Password**.
+4. Authentication → Users → Add user: tạo email/password quản trị (mật khẩu ít nhất 8 ký tự). Sao chép **User UID** của tài khoản này. Có thể đăng ký trong app rồi lấy UID, nhưng tạo trước trên Console dễ hơn.
+5. Build → Realtime Database → Create database → chọn khu vực → bắt đầu **Locked mode**. Sao chép Database URL đúng của dự án (có thể kết thúc bằng `firebasedatabase.app` hoặc `firebaseio.com`). Không tạo Cloud Firestore thay cho Realtime Database.
+6. Realtime Database → Data → ở node gốc chọn menu ⋮ → **Import JSON** → chọn `database/products.json`. Nhập ở node gốc để có đường dẫn `/products/sp01`, không tạo `/products/products`.
+7. Mở `database/database.rules.json`, thay **tất cả** `REPLACE_ADMIN_UID` bằng UID bước 4. Dán toàn bộ vào tab **Rules** của Realtime Database rồi **Publish**. Không để rules mở cho mọi người.
+8. Authentication → Settings → Authorized domains: thêm `localhost` nếu chưa có để thử web.
+
+Quyền admin được kiểm tra thật trên Firebase Rules, không chỉ ẩn nút giao diện. Người đăng ký mới đăng nhập được nhưng chưa có quyền đọc/ghi sản phẩm. Chỉ UID đã cấu hình trong rules mới được phép. Không cần thêm trường `role` vào sản phẩm hoặc node admin trong database.
+
+## 2. Chạy trên VS Code / Windows
+
+Cài Node.js **24 LTS**, Git, VS Code. Nếu chưa tải repo:
 
 ```powershell
 git clone https://github.com/TanTai08/AppGK.git
@@ -21,101 +54,108 @@ cd AppGK
 code .
 ```
 
-Nếu đã có repo, **không clone lại**. Mở thư mục chứa `package.json` bằng File → Open Folder, rồi chạy `git pull` để lấy bản mới. Nếu thư mục của bạn lồng nhau như `D:\AppGK\AppGK`, phải mở thư mục bên trong.
-
-### 3. Cài đặt và khởi động backend
-
-Trong terminal VS Code, tại thư mục có `package.json`:
+Nếu đã có repo: mở đúng thư mục có `package.json`, chạy `git pull`; không clone lại vào thư mục đã tồn tại. Ví dụ cấu trúc lồng nhau trước đây dùng `cd D:\AppGK\AppGK`.
 
 ```powershell
-npm install
-npm run setup
-npm run server
+npm.cmd install
+npm.cmd run setup
 ```
 
-`setup` tạo `.env` nếu chưa có và giữ nguyên cấu hình đã có. Backend đọc `.env`, tự tạo SQLite tại `server/data/app.db`. Khi thấy `API ready on port 3001`, giữ terminal chạy. Có thể mở `http://localhost:3001/api/health` để kiểm tra; kết quả là `{"ok":true}`.
+Mở `.env`, thay cấu hình SQLite cũ (nếu có) bằng các biến trong `.env.example`, điền thông tin Firebase thực của bạn:
 
-### 4. Chạy ứng dụng trên Pixel 7
+```dotenv
+EXPO_PUBLIC_FIREBASE_API_KEY=gia_tri_apiKey
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=ten-du-an.firebaseapp.com
+EXPO_PUBLIC_FIREBASE_DATABASE_URL=https://URL_DATABASE_THUC_CUA_BAN
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=ten-du-an
+EXPO_PUBLIC_FIREBASE_APP_ID=gia_tri_appId
+EXPO_PUBLIC_FIREBASE_ADMIN_UID=UID_tai_khoan_quan_tri
+```
 
-Giữ máy ảo đang mở. Mở terminal thứ hai trong cùng thư mục:
+UID trong `.env` và hai vị trí trong Database Rules phải giống nhau. Đây là cấu hình SDK phía client; không đưa service-account private key hay mật khẩu quản trị vào `.env` hoặc Git. Không commit `.env` thật.
+
+### Web (phần 8 điểm)
 
 ```powershell
-npm run android
+npm.cmd run web
 ```
 
-Expo sẽ cài/mở Expo Go tương thích SDK 54 trên máy ảo. Đăng ký tài khoản mới rồi đăng nhập và thêm/sửa/xóa sản phẩm. Không có tài khoản mặc định. Không cần build APK để chạy thử bằng Expo Go.
+Mở địa chỉ Expo hiển thị (thường `http://localhost:8081`). Đăng nhập bằng tài khoản quản trị đã tạo. Thêm tên, giá, số lượng; bấm Chọn hình ảnh → chọn JPG/PNG/WebP nhỏ hơn 700 KB → Lưu. Sửa và xóa ở từng sản phẩm. Firebase `onValue` tự cập nhật danh sách trên các thiết bị đang mở.
 
-Có thể dùng Terminal → Run Task trong VS Code, chọn `AppGK: Backend`, sau đó `AppGK: Android Pixel 7`.
+### Android Pixel 7 (phần nhập ảnh trên di động)
 
-### Địa chỉ API
+1. Android Studio → Device Manager → tạo Pixel 7 (API 35) → nhấn ▶ và chờ khởi động.
+2. Cấu hình `ANDROID_HOME` tới SDK, thêm `platform-tools` vào PATH nếu máy chưa nhận `adb`.
+3. Chạy:
 
-File `.env` mặc định để trống `EXPO_PUBLIC_API_URL`; ứng dụng tự chọn:
-
-| Nền tảng                   | API mặc định            |
-| -------------------------- | ----------------------- |
-| Pixel 7 / Android emulator | `http://10.0.2.2:3001`  |
-| Web / iOS simulator        | `http://localhost:3001` |
-
-`10.0.2.2` là địa chỉ máy tính từ Android emulator. Nếu `.env` cũ đang đặt `http://localhost:3001`, hãy sửa thành `EXPO_PUBLIC_API_URL=` hoặc `EXPO_PUBLIC_API_URL=http://10.0.2.2:3001` rồi chạy lại `npm run android:clear`.
-
-Điện thoại thật cần đặt `EXPO_PUBLIC_API_URL=http://IP_LAN_MAY_TINH:3001`, hai thiết bị cùng mạng và cho phép cổng 3001 qua tường lửa. Sau đó chạy `npm start` và quét QR bằng Expo Go tương thích SDK 54.
-
-Để chạy web: giữ backend chạy và dùng `npm run web`, mở `http://localhost:8081`. iOS simulator cần macOS/Xcode và `npm run ios`.
-
-### Lỗi thường gặp
-
-| Lỗi                                       | Cách xử lý                                                                                                                                                 |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `destination path 'AppGK' already exists` | Không clone lại; mở thư mục AppGK có `package.json`.                                                                                                       |
-| Không tìm thấy `package.json`             | Terminal đang ở sai thư mục; chuyển vào thư mục chứa file.                                                                                                 |
-| `expo/tsconfig.base` chưa tìm thấy        | Chạy `npm install`; trong VS Code dùng `TypeScript: Restart TS Server` sau khi cài xong.                                                                   |
-| PowerShell chặn `npm.ps1`                 | Dùng `npm.cmd` thay `npm`, hoặc đổi terminal VS Code sang Command Prompt.                                                                                  |
-| Không tìm thấy thiết bị / `adb`           | Mở Pixel 7, kiểm tra `adb devices`; phải thấy `emulator-... device`. Kiểm tra `ANDROID_HOME` và `Path`.                                                    |
-| Không kết nối được API                    | Kiểm tra backend đang chạy, API là `10.0.2.2:3001` trên emulator; thử mở `http://10.0.2.2:3001/api/health` trong Chrome của máy ảo.                        |
-| Expo Go không tương thích                 | Để Expo CLI cài bản tương thích SDK 54 trên emulator; có thể tải bản Android phù hợp từ `https://expo.dev/go?sdkVersion=54&platform=android&device=false`. |
-| Expo không tải được ứng dụng              | Thử `npx expo start --android --localhost --clear` khi máy ảo đang mở.                                                                                     |
-| Cổng 3001 đang được dùng                  | Dừng backend cũ trước khi chạy lại; nếu đổi cổng, đổi cả địa chỉ API trong `.env`.                                                                         |
-
-## Chức năng
-
-- Đăng ký, đăng nhập, khôi phục phiên và đăng xuất.
-- Thêm/sửa/xóa sản phẩm gồm tên, SKU, giá VNĐ nguyên và số lượng.
-- Xác nhận trước khi xóa; kiểm tra dữ liệu ở cả giao diện và API; SKU duy nhất trong tài khoản.
-- React Context + hooks quản lý trạng thái reactive: danh sách cập nhật ngay sau thêm/sửa/xóa khi API xác nhận thay đổi, không cần tải lại trang.
-- Hiển thị trạng thái tải, lỗi mạng và ngăn gửi thao tác trùng.
-
-## Cấu trúc và cơ sở dữ liệu
-
-- `App.tsx`: giao diện responsive, đăng nhập và quản lý sản phẩm.
-- `src/store.tsx`: trạng thái reactive, gọi API, lưu phiên bằng AsyncStorage.
-- `server/index.mjs`: API, xác thực và SQLite.
-- `server/api.test.mjs`: kiểm thử tích hợp.
-
-SQLite tự tạo tại `server/data/app.db`, không đưa vào Git. Ba bảng `users`, `sessions`, `products`; mỗi sản phẩm thuộc một tài khoản. API luôn giới hạn truy vấn theo người đăng nhập. Giá là số nguyên VNĐ để tránh sai số số thực. Sao lưu thư mục dữ liệu khi server dừng hoặc dùng SQLite backup API khi đang chạy; không chỉ sao chép file `.db` khi WAL đang hoạt động.
-
-Mật khẩu dùng scrypt với salt ngẫu nhiên; token phiên ngẫu nhiên 256 bit, server chỉ lưu SHA-256 token, hết hạn sau 7 ngày. Có giới hạn tần suất đăng nhập, prepared statements và Helmet. AsyncStorage không phải kho bí mật mã hóa: trước khi phát hành native nên chuyển token sang SecureStore; bản web nên cân nhắc cookie HttpOnly với bảo vệ CSRF. Triển khai thực tế cần HTTPS, origin chính xác, sao lưu dữ liệu và điều chỉnh giới hạn tải; SQLite phù hợp bản nhỏ chạy một máy chủ.
-
-## API
-
-| Phương thức | Đường dẫn            | Chức năng                           |
-| ----------- | -------------------- | ----------------------------------- |
-| POST        | `/api/auth/register` | `{name,email,password}`             |
-| POST        | `/api/auth/login`    | `{email,password}`                  |
-| GET         | `/api/auth/me`       | Thông tin tài khoản                 |
-| POST        | `/api/auth/logout`   | Thu hồi phiên hiện tại              |
-| GET         | `/api/products`      | Danh sách của tài khoản             |
-| POST        | `/api/products`      | `{name,sku,price,quantity}`         |
-| PUT         | `/api/products/:id`  | Cập nhật toàn bộ thông tin sản phẩm |
-| DELETE      | `/api/products/:id`  | Xóa sản phẩm                        |
-
-Sau đăng nhập, gửi header `Authorization: Bearer <token>` cho các API được bảo vệ.
-
-## Kiểm tra
-
-```bash
-npm run typecheck
-npm test
-npm run build:web
+```powershell
+npx.cmd expo start --android --localhost --clear
 ```
 
-Kiểm thử API dùng database tạm và kiểm tra đăng ký/đăng nhập, dữ liệu không hợp lệ, SKU trùng, cách ly tài khoản, CRUD, lưu dữ liệu và phiên qua lần mở lại database, cùng thu hồi token khi đăng xuất.
+Chấp nhận **Y** nếu CLI hỏi cài Expo Go tương thích SDK 54. Mở ảnh trên máy ảo bằng cách kéo file JPG/PNG nhỏ vào máy ảo hoặc tải ảnh vào Downloads. Trong app: Thêm sản phẩm → Chọn hình ảnh → cấp quyền nếu được hỏi → chọn ảnh → Lưu. Xác nhận ảnh hiện trong danh sách; mở web để thấy cùng dữ liệu.
+
+**Không cần `npm run server`, SQLite hay `10.0.2.2:3001` nữa.** Web/máy ảo cần Internet để kết nối Firebase. iOS dùng `npm run ios` trên macOS/Xcode.
+
+## 3. Nộp bài và chụp bằng chứng
+
+- Link source: https://github.com/TanTai08/AppGK
+- File database bắt buộc: `database/products.json`. Sau khi nhập/sửa sản phẩm thật, nên nộp bản mới nhất: Firebase Console → Realtime Database → Data → menu ở node gốc → **Export JSON**, lưu thành `products-final.json`.
+- Nộp thêm `database/database.rules.json` đã thay UID, và README mô tả cách chạy/thư viện.
+- Ảnh CSDL: mở Console → Data → mở `/products/sp01` hoặc một khóa sản phẩm; chụp rõ tên database và đúng bốn trường. `image` là chuỗi base64 dài, có thể thu gọn để dễ nhìn.
+- Chụp màn hình web có danh sách và ảnh; màn hình form thêm/sửa; màn hình đăng nhập.
+- Chụp Pixel 7 khi chọn ảnh và sau khi lưu ảnh trong danh sách.
+- Không chụp mật khẩu hoặc private key. File JSON không chứa tài khoản; tạo tài khoản lại trong Authentication khi chuyển dự án.
+
+**Repo chưa gắn dự án Firebase của người dùng. Ảnh chụp CSDL thật cần thực hiện sau bước thiết lập; không có ảnh Console giả trong repo.** Chỉ import JSON chưa đủ: phải bật Authentication, cấu hình `.env` và Publish Rules.
+
+## 4. Cấu trúc và thư viện
+
+```text
+App.tsx                      Giao diện đăng nhập/admin, chọn và hiển thị ảnh
+src/firebase.ts              Khởi tạo Firebase từ .env
+src/store.tsx                 Auth, subscription realtime, thêm/sửa/xóa
+src/product.mjs               Kiểm tra và chọn đúng bốn trường trước khi ghi
+src/product.d.mts             Kiểu dữ liệu cho TypeScript
+scripts/setup.mjs             Tạo .env, hướng dẫn khởi động
+tests/product.test.mjs        Kiểm tra schema JSON và payload (thư mục tests)
+database/products.json        Dữ liệu mẫu đầy đủ để import/nộp
+database/database.rules.json  Quyền admin, bắt buộc bốn trường
+.vscode/tasks.json            Lệnh chạy nhanh web/Android
+```
+
+Thư viện chính: `react`, `react-native`, `react-native-web`, `react-dom`, `expo`, `expo-status-bar`, `expo-image-picker`, `firebase`. Công cụ phát triển: TypeScript, `@types/react`; `package-lock.json` khóa phiên bản cài đặt.
+
+## 5. Kiểm tra và xử lý lỗi
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build:web
+npx.cmd expo export --platform android --output-dir android-export
+```
+
+Test tự động kiểm tra file JSON đủ bốn trường, ảnh nhúng hợp lệ, chặn số âm/trường thiếu/ảnh lớn và loại metadata trước khi ghi. Đây chưa thay thế kiểm thử Firebase thật: sau thiết lập, thử admin CRUD trên web/Android và tài khoản thường bị từ chối. Có thể dùng Rules Playground trong Console: giả lập UID admin và UID khác, kiểm tra đọc `/products` và ghi `/products/test`, thử payload có trường thứ năm phải bị từ chối.
+
+| Lỗi                                     | Cách xử lý                                                                                                        |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| PowerShell chặn npm.ps1                 | Dùng `npm.cmd`, `npx.cmd` như các lệnh trên.                                                                      |
+| `expo/tsconfig.base` đỏ                 | `npm.cmd install`, mở đúng thư mục có package.json, chọn TypeScript: Use Workspace Version rồi Restart TS Server. |
+| Màn hình Thiết lập Firebase             | Điền đủ 5 biến config SDK trong `.env`; dừng Expo rồi chạy lại với `--clear`.                                     |
+| Tài khoản chưa có quyền admin           | So khớp UID trong Authentication, `.env` và Database Rules; khởi động lại Expo.                                   |
+| Permission denied                       | Publish đúng Rules vào đúng database/project, đăng nhập tài khoản admin.                                          |
+| Invalid API key / operation not allowed | Kiểm tra config Web app và bật Email/Password trong Authentication.                                               |
+| Không thấy ảnh trên Pixel 7             | Kéo ảnh vào emulator trước, cấp quyền thư viện ảnh, chọn JPG/PNG/WebP dưới 700 KB.                                |
+| Đổi .env nhưng chưa cập nhật            | Dừng Expo và chạy lại `npx.cmd expo start --clear`.                                                               |
+| Màn hình tối/không nhập được            | Nhấn Back một lần để đóng hộp thoại hệ thống; reload app. Các modal thêm/xóa chỉ được mount khi mở.               |
+
+### Kiểm thử Database Rules với emulator (tùy chọn)
+
+Cần Java 21+. Không cần tạo tài khoản Firebase hay đăng nhập CLI:
+
+```powershell
+npx.cmd firebase-tools emulators:exec --project demo-appgk --only database "node --test tests/firebase-rules.test.mjs"
+```
+
+Bài test sử dụng namespace demo và token giả chỉ dành cho emulator chạy cục bộ; không gọi database thật. Test kiểm tra admin CRUD, từ chối khách/tài khoản khác, từ chối trường thứ năm/trường thiếu/số lượng âm. `npm test` mặc định bỏ qua bài test này nếu chưa có emulator. Không triển khai rules với UID thử nghiệm lên database thật.
+
+Trên native, Firebase Auth hiện dùng bộ nhớ cho phiên; có thể cần đăng nhập lại khi đóng hoàn toàn ứng dụng. Bản web dùng cơ chế lưu phiên mặc định của Firebase.

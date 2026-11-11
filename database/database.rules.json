@@ -1,0 +1,28 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "products": {
+      ".read": "auth != null && auth.uid === 'REPLACE_ADMIN_UID'",
+      "$product": {
+        ".write": "auth != null && auth.uid === 'REPLACE_ADMIN_UID'",
+        ".validate": "newData.hasChildren(['name', 'price', 'soluong', 'image'])",
+        "name": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120"
+        },
+        "price": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000000000"
+        },
+        "soluong": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000000 && newData.val() % 1 == 0"
+        },
+        "image": {
+          ".validate": "newData.isString() && newData.val().length <= 1000000 && newData.val().matches(/^data:image\\/(jpeg|png|webp);base64,[A-Za-z0-9+\\/]+=*$/)"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}

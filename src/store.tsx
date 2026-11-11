@@ -1,128 +1,133 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Platform } from "react-native";
-export type Product = {
-  id: number;
-  name: string;
-  sku: string;
-  price: number;
-  quantity: number;
-};
-type User = { id: number; name: string; email: string };
-const API =
-  process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, "") ||
-  (Platform.OS === "android"
-    ? "http://10.0.2.2:3001"
-    : "http://localhost:3001");
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  User,
+} from "firebase/auth";
+import {
+  onValue,
+  ref,
+  push,
+  set,
+  remove as deleteRecord,
+} from "firebase/database";
+import { auth, db, configured, adminUid } from "./firebase";
+import { productData, ProductData } from "./product.mjs";
+export type Product = ProductData & { key: string }; // key is UI metadata, never written to Firebase.
+export function errorMessage(error: unknown) {
+  const code = (error as { code?: string })?.code || "";
+  if (/invalid-credential|wrong-password|user-not-found/.test(code))
+    return "Email hoặc mật khẩu không đúng.";
+  if (/email-already-in-use/.test(code)) return "Email đã được đăng ký.";
+  if (/invalid-email/.test(code)) return "Email không hợp lệ.";
+  if (/weak-password/.test(code)) return "Mật khẩu phải có ít nhất 8 ký tự.";
+  if (/too-many-requests/.test(code))
+    return "Quá nhiều yêu cầu. Vui lòng thử lại sau.";
+  if (/network-request-failed/.test(code))
+    return "Không kết nối được Firebase. Kiểm tra Internet.";
+  if (/permission.denied|PERMISSION_DENIED/i.test(code))
+    return "Không có quyền truy cập. Kiểm tra UID admin và Database Rules.";
+  return error instanceof Error
+    ? error.message
+    : "Có lỗi xảy ra. Vui lòng thử lại.";
+}
 function useAppStore() {
-  const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(configured);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
-  async function clearSession() {
-    setToken(null);
-    setUser(null);
-    setProducts([]);
-    await AsyncStorage.removeItem("session");
-  }
-  async function request(
-    path: string,
-    method = "GET",
-    body?: unknown,
-    session = token,
-  ) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    try {
-      const response = await fetch(`${API}/api${path}`, {
-        method,
-        signal: controller.signal,
-        headers: {
-          "Content-Type": "application/json",
-          ...(session ? { Authorization: `Bearer ${session}` } : {}),
-        },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-      });
-      const data = response.status === 204 ? null : await response.json();
-      if (!response.ok) {
-        if (response.status === 401 && session) await clearSession();
-        throw new Error(data?.error || "Yêu cầu không thành công.");
-      }
-      return data;
-    } catch (e) {
-      if (
-        e instanceof Error &&
-        (e.name === "AbortError" ||
-          e.message === "Failed to fetch" ||
-          e.message === "Network request failed")
-      )
-        throw new Error(
-          "Không kết nối được máy chủ. Kiểm tra mạng và địa chỉ API.",
-        );
-      throw e;
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-  async function restore() {
-    setLoading(true);
-    setLoadError("");
-    try {
-      const saved = await AsyncStorage.getItem("session");
-      if (saved) {
-        const me = await request("/auth/me", "GET", undefined, saved);
-        const list = await request("/products", "GET", undefined, saved);
-        setToken(saved);
-        setUser(me);
-        setProducts(list);
-      }
-    } catch (e) {
-      setLoadError((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const isAdmin = !!user && !!adminUid && user.uid === adminUid;
   useEffect(() => {
-    void restore();
+    if (!auth) return;
+    return onAuthStateChanged(auth, (value) => {
+      setUser(value);
+      setProducts([]);
+      setLoadError("");
+      setLoading(false);
+    });
   }, []);
+  useEffect(() => {
+    if (!isAdmin || !db) {
+      setProducts([]);
+      setProductsLoading(false);
+      return;
+    }
+    setProductsLoading(true);
+    setLoadError("");
+    return onValue(
+      ref(db, "products"),
+      (snapshot) => {
+        const values: Product[] = [];
+        snapshot.forEach((child) => {
+          values.push({ ...child.val(), key: child.key! });
+        });
+        setProducts(values.reverse());
+        setProductsLoading(false);
+        setLoadError("");
+      },
+      (error) => {
+        setLoadError(errorMessage(error));
+        setProductsLoading(false);
+      },
+    );
+  }, [user?.uid, isAdmin]);
   async function authenticate(
     mode: "login" | "register",
-    values: { email: string; password: string; name: string },
+    values: { email: string; password: string },
   ) {
-    const data = await request(`/auth/${mode}`, "POST", values, null);
-    await AsyncStorage.setItem("session", data.token);
-    const list = await request("/products", "GET", undefined, data.token);
-    setToken(data.token);
-    setUser(data.user);
-    setProducts(list);
-    setLoadError("");
+    if (!auth) throw new Error("Chưa cấu hình Firebase. Xem README.");
+    if (
+      !values.email.trim() ||
+      values.password.length < 8 ||
+      values.password.length > 128
+    )
+      throw new Error("Nhập email và mật khẩu từ 8 đến 128 ký tự.");
+    try {
+      await (
+        mode === "register"
+          ? createUserWithEmailAndPassword
+          : signInWithEmailAndPassword
+      )(auth, values.email.trim(), values.password);
+    } catch (error) {
+      throw new Error(errorMessage(error));
+    }
   }
-  async function save(values: Omit<Product, "id">, id?: number) {
-    const product = await request(
-      id ? `/products/${id}` : "/products",
-      id ? "PUT" : "POST",
-      values,
-    );
-    setProducts((list) =>
-      id ? list.map((p) => (p.id === id ? product : p)) : [product, ...list],
-    );
+  async function save(values: ProductData, key?: string) {
+    if (!isAdmin || !db)
+      throw new Error("Chỉ quản trị viên được phép thao tác.");
+    const data = productData(values);
+    try {
+      await set(
+        key ? ref(db, `products/${key}`) : push(ref(db, "products")),
+        data,
+      );
+    } catch (error) {
+      throw new Error(errorMessage(error));
+    }
   }
-  async function remove(id: number) {
-    await request(`/products/${id}`, "DELETE");
-    setProducts((list) => list.filter((p) => p.id !== id));
+  async function remove(key: string) {
+    if (!isAdmin || !db)
+      throw new Error("Chỉ quản trị viên được phép thao tác.");
+    try {
+      await deleteRecord(ref(db, `products/${key}`));
+    } catch (error) {
+      throw new Error(errorMessage(error));
+    }
   }
   async function logout() {
-    await request("/auth/logout", "POST");
-    await clearSession();
+    if (auth) await signOut(auth);
   }
   return {
     user,
+    isAdmin,
     products,
     loading,
+    productsLoading,
     loadError,
     authenticate,
-    restore,
     save,
     remove,
     logout,
