@@ -22,6 +22,18 @@ Nếu `.env` cũ chứa giá trị Firebase khác, xóa các giá trị ghi đè
 
 Các phần dưới hướng dẫn tạo một dự án Firebase khác nếu cần. Khi đổi dự án, cập nhật cả config và UID trong Rules.
 
+## Tìm kiếm và thống kê
+
+- Tìm theo tên, hỗ trợ tiếng Việt có/không dấu (`ca phe`, `dak lak`), nhiều từ và chữ hoa/thường.
+- Bốn thẻ tổng quan: số mặt hàng, tổng số lượng tồn, giá trị tồn kho (`price × soluong`), số mặt hàng cần bổ sung.
+- Thống kê luôn tính trên **toàn bộ kho**, độc lập bộ lọc. Giá trị tồn kho không phải doanh thu.
+- Lọc Tất cả / Còn hàng (>0) / Sắp hết (1–5) / Hết hàng (0). Mỗi bộ lọc có số đếm.
+- Sắp xếp mặc định, tên A–Z, giá tăng/giảm, tồn kho tăng; có nút đặt lại và trạng thái không tìm thấy.
+- Thông báo sau khi lưu/xóa; số liệu tự tính lại khi subscription Firebase nhận dữ liệu mới.
+- Giao diện web/điện thoại: thẻ tổng quan, thanh tìm kiếm, nhãn tồn kho và ảnh sản phẩm.
+
+Mọi tìm kiếm, bộ lọc, thứ tự hiển thị và thống kê đều nằm ở giao diện/bộ nhớ. **Không thêm trường, node thống kê hoặc chỉ mục tìm kiếm vào CSDL.** Mỗi sản phẩm vẫn chỉ có `name`, `price`, `soluong`, `image`. Không có biểu đồ doanh thu theo thời gian vì database không lưu đơn hàng/lịch sử.
+
 ## Đáp ứng đề bài
 
 | Yêu cầu                            | Thực hiện                                                     |
@@ -134,6 +146,7 @@ Chấp nhận **Y** nếu CLI hỏi cài Expo Go tương thích SDK 54. Mở ả
 App.tsx                      Giao diện đăng nhập/admin, chọn và hiển thị ảnh
 src/firebase.ts              Khởi tạo Firebase từ .env
 src/store.tsx                 Auth, subscription realtime, thêm/sửa/xóa
+src/inventory.mjs             Tìm kiếm, bộ lọc, sắp xếp, thống kê chỉ đọc
 src/product.mjs               Kiểm tra và chọn đúng bốn trường trước khi ghi
 src/product.d.mts             Kiểu dữ liệu cho TypeScript
 scripts/setup.mjs             Tạo .env, hướng dẫn khởi động

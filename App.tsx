@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -12,11 +12,26 @@ import {
   View,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { configured } from "./src/firebase";
 import { StatusBar } from "expo-status-bar";
 import { AppProvider, Product, useStore } from "./src/store";
+import {
+  inventoryStats,
+  inventoryView,
+  LOW_STOCK,
+  StockFilter,
+  InventorySort,
+} from "./src/inventory.mjs";
+const SORT_OPTIONS: { value: InventorySort; label: string }[] = [
+  { value: "default", label: "Thứ tự mặc định" },
+  { value: "name", label: "Tên A → Z" },
+  { value: "priceAsc", label: "Giá thấp → cao" },
+  { value: "priceDesc", label: "Giá cao → thấp" },
+  { value: "stockAsc", label: "Tồn kho ít → nhiều" },
+];
 const money = (n: number) => n.toLocaleString("vi-VN") + " ₫";
 function Button({
   title,
@@ -71,7 +86,9 @@ function Field({
         autoCapitalize="none"
         keyboardType={
           numeric
-            ? "number-pad"
+            ? label.includes("Giá")
+              ? "decimal-pad"
+              : "number-pad"
             : label.includes("Email")
               ? "email-address"
               : "default"
@@ -158,8 +175,38 @@ function Auth() {
   );
 }
 function Dashboard() {
+  return <DashboardView store={useStore()} />;
+}
+export function DashboardView({
+  store,
+}: {
+  store: ReturnType<typeof useStore>;
+}) {
   const { user, products, productsLoading, loadError, save, remove, logout } =
-    useStore();
+    store;
+  const compact = useWindowDimensions().width < 600;
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<StockFilter>("all");
+  const [sort, setSort] = useState<InventorySort>("default");
+  const [sortOpen, setSortOpen] = useState(false);
+  const [notice, setNotice] = useState("");
+  const stats = useMemo(() => inventoryStats(products), [products]);
+  const visible = useMemo(
+    () => inventoryView(products, search, filter, sort),
+    [products, search, filter, sort],
+  );
+  const ready = !productsLoading && !loadError;
+  const filters: { value: StockFilter; label: string; count: number }[] = [
+    { value: "all", label: "Tất cả", count: stats.count },
+    { value: "available", label: "Còn hàng", count: stats.count - stats.out },
+    { value: "low", label: "Sắp hết", count: stats.low },
+    { value: "out", label: "Hết hàng", count: stats.out },
+  ];
+  function resetFilters() {
+    setSearch("");
+    setFilter("all");
+    setSort("default");
+  }
   const [editor, setEditor] = useState<Product | "new" | null>(null);
   const [deleting, setDeleting] = useState<Product | null>(null);
   const [name, setName] = useState("");
@@ -227,6 +274,11 @@ function Dashboard() {
         editor && editor !== "new" ? editor.key : undefined,
       );
       setEditor(null);
+      setNotice(
+        editor === "new"
+          ? "Đã thêm sản phẩm. Danh sách và thống kê đã cập nhật."
+          : "Đã lưu thay đổi sản phẩm.",
+      );
     } catch (e) {
       setFormError((e as Error).message);
     } finally {
@@ -263,18 +315,155 @@ function Dashboard() {
       </View>
       <View style={s.heading}>
         <View>
-          <Text style={s.eyebrow}>KHÔNG GIAN CỦA BẠN</Text>
-          <Text style={s.hero}>Sản phẩm</Text>
-          <Text style={s.muted}>Thêm, sửa và xóa sản phẩm của bạn.</Text>
+          <Text style={s.eyebrow}>QUẢN TRỊ KHO HÀNG</Text>
+          <Text style={s.hero}>Tổng quan sản phẩm</Text>
+          <Text style={s.muted}>
+            Nắm rõ tồn kho, quản lý từng sản phẩm dễ dàng.
+          </Text>
         </View>
         <Button title="＋ Thêm sản phẩm" onPress={() => open("new")} />
       </View>
+      <View style={s.summaryHeading}>
+        <Text style={s.sectionTitle}>Kho hàng của bạn</Text>
+        <Text style={s.muted}>Toàn bộ kho · Cập nhật tự động</Text>
+      </View>
+      <View style={s.statsGrid}>
+        {[
+          {
+            label: "Mặt hàng",
+            value: stats.count.toLocaleString("vi-VN"),
+            detail: "Số sản phẩm trong danh sách",
+          },
+          {
+            label: "Tổng số lượng",
+            value: stats.quantity.toLocaleString("vi-VN"),
+            detail: "Tổng đơn vị sản phẩm còn trong kho",
+          },
+          {
+            label: "Giá trị tồn kho",
+            value: money(stats.value),
+            detail: "Tổng giá × số lượng · Không phải doanh thu",
+          },
+          {
+            label: "Cần bổ sung",
+            value: (stats.low + stats.out).toLocaleString("vi-VN"),
+            detail: `${stats.low} sắp hết · ${stats.out} hết hàng`,
+          },
+        ].map((card, index) => (
+          <View
+            key={card.label}
+            style={[
+              s.statCard,
+              compact && { minWidth: 140, flexBasis: "45%", padding: 16 },
+              index === 2 && s.statCardAccent,
+            ]}
+          >
+            <Text style={[s.statLabel, index === 2 && { color: "#c9decf" }]}>
+              {card.label}
+            </Text>
+            <Text
+              style={[
+                s.statValue,
+                compact && { fontSize: 22 },
+                index === 2 && { color: "#fff" },
+              ]}
+            >
+              {ready ? card.value : "—"}
+            </Text>
+            <Text style={[s.statDetail, index === 2 && { color: "#c9decf" }]}>
+              {ready ? card.detail : "Chờ tải dữ liệu"}
+            </Text>
+          </View>
+        ))}
+      </View>
+      {!!notice && (
+        <View accessibilityLiveRegion="polite" style={s.notice}>
+          <Text style={{ color: "#285b45", flex: 1 }}>{notice}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Đóng thông báo"
+            onPress={() => setNotice("")}
+            style={{ padding: 8 }}
+          >
+            <Text>✕</Text>
+          </Pressable>
+        </View>
+      )}
       {!!(error || loadError) && (
         <Text accessibilityRole="alert" style={s.error}>
           {error || loadError}
         </Text>
       )}
       <View style={s.panel}>
+        <View style={s.summaryHeading}>
+          <View>
+            <Text style={s.sectionTitle}>Danh sách sản phẩm</Text>
+            <Text style={s.muted}>
+              Sắp hết: từ 1 đến {LOW_STOCK} · Hết hàng: 0
+            </Text>
+          </View>
+          <Text style={s.resultCount}>
+            {ready
+              ? `${visible.length} / ${products.length} mặt hàng`
+              : "Đang tải…"}
+          </Text>
+        </View>
+        <View style={s.toolbar}>
+          <View style={s.searchBox}>
+            <Text style={s.searchIcon}>⌕</Text>
+            <TextInput
+              accessibilityLabel="Tìm kiếm sản phẩm"
+              placeholder="Tìm tên sản phẩm, có dấu hoặc không dấu…"
+              placeholderTextColor="#87928c"
+              value={search}
+              onChangeText={setSearch}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={s.searchInput}
+            />
+            {!!search && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Xóa từ khóa"
+                onPress={() => setSearch("")}
+                style={{ padding: 12 }}
+              >
+                <Text style={s.muted}>✕</Text>
+              </Pressable>
+            )}
+          </View>
+          <Button
+            secondary
+            title={`Sắp xếp: ${SORT_OPTIONS.find((o) => o.value === sort)!.label} ▾`}
+            onPress={() => setSortOpen(true)}
+          />
+        </View>
+        <View style={[s.row, { marginBottom: 20 }]}>
+          {filters.map((f) => (
+            <Pressable
+              key={f.value}
+              accessibilityRole="button"
+              accessibilityState={{ selected: filter === f.value }}
+              onPress={() => setFilter(f.value)}
+              style={[s.filterChip, filter === f.value && s.filterActive]}
+            >
+              <Text
+                style={[s.filterText, filter === f.value && { color: "#fff" }]}
+              >
+                {f.label} · {ready ? f.count : "—"}
+              </Text>
+            </Pressable>
+          ))}
+          {(search || filter !== "all" || sort !== "default") && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={resetFilters}
+              style={{ padding: 10 }}
+            >
+              <Text style={{ color: "#536e60" }}>Đặt lại</Text>
+            </Pressable>
+          )}
+        </View>
         {productsLoading ? (
           <ActivityIndicator color="#275c46" />
         ) : loadError ? (
@@ -290,8 +479,16 @@ function Dashboard() {
               onPress={() => open("new")}
             />
           </View>
+        ) : !visible.length ? (
+          <View style={s.empty}>
+            <Text style={s.emptyTitle}>Không tìm thấy sản phẩm</Text>
+            <Text style={s.muted}>
+              Thử tên khác hoặc bỏ bộ lọc để xem toàn bộ kho.
+            </Text>
+            <Button title="Bỏ bộ lọc" secondary onPress={resetFilters} />
+          </View>
         ) : (
-          products.map((p) => (
+          visible.map((p) => (
             <View key={p.key} style={s.product}>
               <Image
                 source={{ uri: p.image }}
@@ -301,8 +498,28 @@ function Dashboard() {
               />
               <View style={{ flex: 1, minWidth: 150 }}>
                 <Text style={s.productName}>{p.name}</Text>
-                <Text style={s.muted}>{money(p.price)}</Text>
-                <Text style={s.stock}>Số lượng: {p.soluong}</Text>
+                <Text style={s.productPrice}>{money(p.price)}</Text>
+                <View style={s.row}>
+                  <Text style={s.muted}>
+                    Số lượng: {p.soluong.toLocaleString("vi-VN")}
+                  </Text>
+                  <Text
+                    style={[
+                      s.stockBadge,
+                      p.soluong === 0
+                        ? s.badgeOut
+                        : p.soluong <= LOW_STOCK
+                          ? s.badgeLow
+                          : s.badgeAvailable,
+                    ]}
+                  >
+                    {p.soluong === 0
+                      ? "Hết hàng"
+                      : p.soluong <= LOW_STOCK
+                        ? "Sắp hết"
+                        : "Còn hàng"}
+                  </Text>
+                </View>
               </View>
               <View style={s.row}>
                 <Button title="Sửa" secondary onPress={() => open(p)} />
@@ -325,6 +542,49 @@ function Dashboard() {
       <Text style={[s.muted, { marginTop: 24 }]}>
         KHO HÀNG · Đơn giản mỗi ngày
       </Text>
+      {sortOpen && (
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSortOpen(false)}
+        >
+          <View style={s.overlay}>
+            <View style={s.modalCard}>
+              <Text style={[s.modalTitle, { marginBottom: 20 }]}>
+                Sắp xếp sản phẩm
+              </Text>
+              {SORT_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.value}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: sort === option.value }}
+                  onPress={() => {
+                    setSort(option.value);
+                    setSortOpen(false);
+                  }}
+                  style={[s.sortOption, sort === option.value && s.secondary]}
+                >
+                  <Text
+                    style={{
+                      color: "#285b45",
+                      fontWeight: sort === option.value ? "700" : "400",
+                    }}
+                  >
+                    {option.label}
+                    {sort === option.value ? " ✓" : ""}
+                  </Text>
+                </Pressable>
+              ))}
+              <Button
+                title="Đóng"
+                secondary
+                onPress={() => setSortOpen(false)}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
       {editor !== null && (
         <Modal
           visible={true}
@@ -449,6 +709,7 @@ function Dashboard() {
                     void act(async () => {
                       await remove(deleting!.key);
                       setDeleting(null);
+                      setNotice("Đã xóa sản phẩm. Thống kê đã cập nhật.");
                     })
                   }
                 />
@@ -511,11 +772,109 @@ export default function App() {
   );
 }
 const s = StyleSheet.create({
+  summaryHeading: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+  },
+  sectionTitle: {
+    fontSize: 19,
+    fontWeight: "700",
+    color: "#284535",
+    marginBottom: 4,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 14,
+    marginBottom: 28,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: 220,
+    padding: 22,
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#e2e8dd",
+  },
+  statCardAccent: { backgroundColor: "#285b45", borderColor: "#285b45" },
+  statLabel: { fontSize: 14, color: "#667b6e", fontWeight: "600" },
+  statValue: {
+    fontSize: 29,
+    fontWeight: "700",
+    color: "#234b39",
+    marginVertical: 15,
+  },
+  statDetail: { fontSize: 12, color: "#7c897e", lineHeight: 19 },
+  notice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#e5f0e2",
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 18,
+  },
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 18,
+  },
+  searchBox: {
+    flex: 1,
+    minWidth: 220,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f7f9f4",
+    borderWidth: 1,
+    borderColor: "#dce4d7",
+    borderRadius: 12,
+  },
+  searchIcon: { fontSize: 26, color: "#627c69", paddingLeft: 15 },
+  searchInput: {
+    flex: 1,
+    minWidth: 0,
+    padding: 14,
+    fontSize: 14,
+    color: "#234b39",
+  },
+  filterChip: {
+    paddingHorizontal: 15,
+    paddingVertical: 11,
+    borderRadius: 24,
+    backgroundColor: "#f0f4eb",
+  },
+  filterActive: { backgroundColor: "#285b45" },
+  filterText: { fontSize: 13, fontWeight: "600", color: "#536d5e" },
+  resultCount: { fontSize: 13, color: "#718273" },
+  productPrice: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#365f49",
+    marginBottom: 8,
+  },
+  stockBadge: {
+    fontSize: 11,
+    fontWeight: "600",
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderRadius: 6,
+  },
+  badgeAvailable: { color: "#35613e", backgroundColor: "#eaf2e5" },
+  badgeLow: { color: "#8a5b0d", backgroundColor: "#fff2d5" },
+  badgeOut: { color: "#a34646", backgroundColor: "#fcebea" },
+  sortOption: { padding: 16, borderRadius: 10, marginBottom: 8 },
   root: { flex: 1, backgroundColor: "#f5f6f1" },
   page: {
     padding: 24,
     paddingTop: 42,
-    maxWidth: 1150,
+    maxWidth: 1280,
     width: "100%",
     alignSelf: "center",
   },
@@ -599,21 +958,13 @@ const s = StyleSheet.create({
     borderColor: "#edf0e9",
     paddingVertical: 20,
   },
-  productIcon: {
-    width: 52,
-    height: 56,
-    backgroundColor: "#edf2e8",
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   productName: {
     fontSize: 17,
     color: "#253f30",
     fontWeight: "600",
     marginBottom: 4,
   },
-  stock: { fontSize: 12, color: "#3c7b54", marginTop: 5 },
+
   empty: {
     flex: 1,
     alignItems: "center",
