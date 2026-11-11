@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   Image,
   Pressable,
   ScrollView,
@@ -9,11 +8,11 @@ import {
   Text,
   TextInput,
   View,
-  KeyboardAvoidingView,
   Platform,
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { AppModal } from "./src/components/AppModal";
 import * as ImagePicker from "expo-image-picker";
 import { configured } from "./src/firebase";
 import { StatusBar } from "expo-status-bar";
@@ -184,7 +183,9 @@ export function DashboardView({
 }) {
   const { user, products, productsLoading, loadError, save, remove, logout } =
     store;
-  const compact = useWindowDimensions().width < 600;
+  const windowWidth = useWindowDimensions().width;
+  const compact = windowWidth < 600;
+  const narrow = windowWidth < 350;
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<StockFilter>("all");
   const [sort, setSort] = useState<InventorySort>("default");
@@ -298,13 +299,19 @@ export function DashboardView({
   }
   return (
     <ScrollView
-      contentContainerStyle={s.page}
+      style={s.fullWidth}
+      contentContainerStyle={[s.page, compact && s.pageCompact]}
       keyboardShouldPersistTaps="handled"
     >
       <View style={s.header}>
         <Text style={s.brand}>◈ KHO HÀNG</Text>
-        <View style={s.row}>
-          <Text style={s.muted}>{user?.email}</Text>
+        <View style={[s.row, compact && s.mobileAccount]}>
+          <Text
+            numberOfLines={1}
+            style={[s.muted, { flexShrink: 1 }, compact && { flex: 1 }]}
+          >
+            {user?.email}
+          </Text>
           <Button
             title="Đăng xuất"
             secondary
@@ -313,17 +320,19 @@ export function DashboardView({
           />
         </View>
       </View>
-      <View style={s.heading}>
-        <View>
+      <View style={[s.heading, compact && s.headingCompact]}>
+        <View style={[s.headingCopy, compact && s.headingCopyCompact]}>
           <Text style={s.eyebrow}>QUẢN TRỊ KHO HÀNG</Text>
-          <Text style={s.hero}>Tổng quan sản phẩm</Text>
+          <Text style={[s.hero, compact && s.heroCompact]}>
+            Tổng quan sản phẩm
+          </Text>
           <Text style={s.muted}>
             Nắm rõ tồn kho, quản lý từng sản phẩm dễ dàng.
           </Text>
         </View>
         <Button title="＋ Thêm sản phẩm" onPress={() => open("new")} />
       </View>
-      <View style={s.summaryHeading}>
+      <View style={[s.summaryHeading, compact && s.summaryCompact]}>
         <Text style={s.sectionTitle}>Kho hàng của bạn</Text>
       </View>
       <View style={s.statsGrid}>
@@ -353,7 +362,11 @@ export function DashboardView({
             key={card.label}
             style={[
               s.statCard,
-              compact && { minWidth: 140, flexBasis: "45%", padding: 16 },
+              compact && {
+                minWidth: 0,
+                flexBasis: narrow ? "100%" : "45%",
+                padding: 16,
+              },
               index === 2 && s.statCardAccent,
             ]}
           >
@@ -361,9 +374,12 @@ export function DashboardView({
               {card.label}
             </Text>
             <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.65}
               style={[
                 s.statValue,
-                compact && { fontSize: 22 },
+                compact && { fontSize: 20 },
                 index === 2 && { color: "#fff" },
               ]}
             >
@@ -393,8 +409,8 @@ export function DashboardView({
           {error || loadError}
         </Text>
       )}
-      <View style={s.panel}>
-        <View style={s.summaryHeading}>
+      <View style={[s.panel, compact && s.panelCompact]}>
+        <View style={[s.summaryHeading, compact && s.summaryCompact]}>
           <View>
             <Text style={s.sectionTitle}>Danh sách sản phẩm</Text>
             <Text style={s.muted}>
@@ -408,7 +424,7 @@ export function DashboardView({
           </Text>
         </View>
         <View style={s.toolbar}>
-          <View style={s.searchBox}>
+          <View style={[s.searchBox, compact && s.searchBoxCompact]}>
             <Text style={s.searchIcon}>⌕</Text>
             <TextInput
               accessibilityLabel="Tìm kiếm sản phẩm"
@@ -492,10 +508,14 @@ export function DashboardView({
               <Image
                 source={{ uri: p.image }}
                 accessibilityLabel={`Ảnh ${p.name}`}
-                style={{ width: 88, height: 88, borderRadius: 12 }}
+                style={{
+                  width: compact ? 72 : 88,
+                  height: compact ? 72 : 88,
+                  borderRadius: 12,
+                }}
                 resizeMode="cover"
               />
-              <View style={{ flex: 1, minWidth: 150 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={s.productName}>{p.name}</Text>
                 <Text style={s.productPrice}>{money(p.price)}</Text>
                 <View style={s.row}>
@@ -520,7 +540,7 @@ export function DashboardView({
                   </Text>
                 </View>
               </View>
-              <View style={s.row}>
+              <View style={[s.row, compact && s.productActionsCompact]}>
                 <Button title="Sửa" secondary onPress={() => open(p)} />
                 <Pressable
                   accessibilityRole="button"
@@ -539,180 +559,132 @@ export function DashboardView({
         )}
       </View>
       {sortOpen && (
-        <Modal
-          visible
-          transparent
-          animationType="fade"
-          onRequestClose={() => setSortOpen(false)}
-        >
-          <View style={s.overlay}>
-            <View style={s.modalCard}>
-              <Text style={[s.modalTitle, { marginBottom: 20 }]}>
-                Sắp xếp sản phẩm
+        <AppModal onClose={() => setSortOpen(false)}>
+          <Text style={[s.modalTitle, { marginBottom: 20 }]}>
+            Sắp xếp sản phẩm
+          </Text>
+          {SORT_OPTIONS.map((option) => (
+            <Pressable
+              key={option.value}
+              accessibilityRole="button"
+              accessibilityState={{ selected: sort === option.value }}
+              onPress={() => {
+                setSort(option.value);
+                setSortOpen(false);
+              }}
+              style={[s.sortOption, sort === option.value && s.secondary]}
+            >
+              <Text
+                style={{
+                  color: "#285b45",
+                  fontWeight: sort === option.value ? "700" : "400",
+                }}
+              >
+                {option.label}
+                {sort === option.value ? " ✓" : ""}
               </Text>
-              {SORT_OPTIONS.map((option) => (
-                <Pressable
-                  key={option.value}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: sort === option.value }}
-                  onPress={() => {
-                    setSort(option.value);
-                    setSortOpen(false);
-                  }}
-                  style={[s.sortOption, sort === option.value && s.secondary]}
-                >
-                  <Text
-                    style={{
-                      color: "#285b45",
-                      fontWeight: sort === option.value ? "700" : "400",
-                    }}
-                  >
-                    {option.label}
-                    {sort === option.value ? " ✓" : ""}
-                  </Text>
-                </Pressable>
-              ))}
-              <Button
-                title="Đóng"
-                secondary
-                onPress={() => setSortOpen(false)}
-              />
-            </View>
-          </View>
-        </Modal>
+            </Pressable>
+          ))}
+          <Button title="Đóng" secondary onPress={() => setSortOpen(false)} />
+        </AppModal>
       )}
       {editor !== null && (
-        <Modal
-          visible={true}
-          transparent
-          animationType="fade"
-          onRequestClose={() => {
-            if (!busy) setEditor(null);
-          }}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={s.overlay}
-          >
-            <ScrollView
-              contentContainerStyle={s.modalScroll}
-              keyboardShouldPersistTaps="handled"
-            >
-              <View style={s.modalCard}>
-                <Text style={s.modalTitle}>
-                  {editor === "new" ? "Thêm sản phẩm" : "Sửa sản phẩm"}
-                </Text>
-                <Text style={[s.muted, { marginBottom: 24 }]}>
-                  Thông tin rõ ràng, quản lý dễ dàng.
-                </Text>
-                <Field
-                  label="Tên sản phẩm"
-                  value={name}
-                  onChangeText={setName}
-                />
-                <Field
-                  label="Giá bán (VNĐ)"
-                  value={price}
-                  onChangeText={setPrice}
-                  numeric
-                />
-                <Field
-                  label="Số lượng"
-                  value={quantity}
-                  onChangeText={setQuantity}
-                  numeric
-                />
-                <Text style={s.label}>Hình ảnh sản phẩm (JPG, PNG, WebP)</Text>
-                {!!image && (
-                  <Image
-                    source={{ uri: image }}
-                    accessibilityLabel="Ảnh đã chọn"
-                    style={{
-                      width: "100%",
-                      height: 160,
-                      marginBottom: 12,
-                      borderRadius: 10,
-                    }}
-                    resizeMode="contain"
-                  />
-                )}
-                <Button
-                  title={
-                    picking
-                      ? "Đang chọn ảnh…"
-                      : image
-                        ? "Đổi hình ảnh"
-                        : "Chọn hình ảnh"
-                  }
-                  secondary
-                  disabled={busy || picking}
-                  onPress={() => void pickImage()}
-                />
-                <Text style={[s.muted, { marginVertical: 10 }]}>
-                  Ảnh dưới 700 KB. Ảnh được lưu trực tiếp cùng sản phẩm.
-                </Text>
-                {!!formError && (
-                  <Text accessibilityRole="alert" style={s.error}>
-                    {formError}
-                  </Text>
-                )}
-                <View style={s.row}>
-                  <Button
-                    title="Hủy"
-                    secondary
-                    disabled={busy}
-                    onPress={() => setEditor(null)}
-                  />
-                  <Button
-                    title={busy ? "Đang lưu…" : "Lưu sản phẩm"}
-                    disabled={busy || picking}
-                    onPress={() => void submit()}
-                  />
-                </View>
-              </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </Modal>
+        <AppModal busy={busy || picking} onClose={() => setEditor(null)}>
+          <Text style={s.modalTitle}>
+            {editor === "new" ? "Thêm sản phẩm" : "Sửa sản phẩm"}
+          </Text>
+          <Text style={[s.muted, { marginBottom: 24 }]}>
+            Thông tin rõ ràng, quản lý dễ dàng.
+          </Text>
+          <Field label="Tên sản phẩm" value={name} onChangeText={setName} />
+          <Field
+            label="Giá bán (VNĐ)"
+            value={price}
+            onChangeText={setPrice}
+            numeric
+          />
+          <Field
+            label="Số lượng"
+            value={quantity}
+            onChangeText={setQuantity}
+            numeric
+          />
+          <Text style={s.label}>Hình ảnh sản phẩm (JPG, PNG, WebP)</Text>
+          {!!image && (
+            <Image
+              source={{ uri: image }}
+              accessibilityLabel="Ảnh đã chọn"
+              style={{
+                width: "100%",
+                height: 160,
+                marginBottom: 12,
+                borderRadius: 10,
+              }}
+              resizeMode="contain"
+            />
+          )}
+          <Button
+            title={
+              picking
+                ? "Đang chọn ảnh…"
+                : image
+                  ? "Đổi hình ảnh"
+                  : "Chọn hình ảnh"
+            }
+            secondary
+            disabled={busy || picking}
+            onPress={() => void pickImage()}
+          />
+          <Text style={[s.muted, { marginVertical: 10 }]}>
+            Ảnh dưới 700 KB. Ảnh được lưu trực tiếp cùng sản phẩm.
+          </Text>
+          {!!formError && (
+            <Text accessibilityRole="alert" style={s.error}>
+              {formError}
+            </Text>
+          )}
+          <View style={s.row}>
+            <Button
+              title="Hủy"
+              secondary
+              disabled={busy}
+              onPress={() => setEditor(null)}
+            />
+            <Button
+              title={busy ? "Đang lưu…" : "Lưu sản phẩm"}
+              disabled={busy || picking}
+              onPress={() => void submit()}
+            />
+          </View>
+        </AppModal>
       )}
       {deleting !== null && (
-        <Modal
-          visible={true}
-          transparent
-          animationType="fade"
-          onRequestClose={() => {
-            if (!busy) setDeleting(null);
-          }}
-        >
-          <View style={s.overlay}>
-            <View style={s.modalCard}>
-              <Text style={s.modalTitle}>Xóa sản phẩm?</Text>
-              <Text style={[s.muted, { marginVertical: 20 }]}>
-                Bạn muốn xóa “{deleting?.name}”? Thao tác này không thể hoàn
-                tác.
-              </Text>
-              {!!error && <Text style={s.error}>{error}</Text>}
-              <View style={s.row}>
-                <Button
-                  title="Giữ lại"
-                  secondary
-                  disabled={busy}
-                  onPress={() => setDeleting(null)}
-                />
-                <Button
-                  title={busy ? "Đang xóa…" : "Xác nhận xóa"}
-                  disabled={busy}
-                  onPress={() =>
-                    void act(async () => {
-                      await remove(deleting!.key);
-                      setDeleting(null);
-                      setNotice("Đã xóa sản phẩm. Thống kê đã cập nhật.");
-                    })
-                  }
-                />
-              </View>
-            </View>
+        <AppModal busy={busy} onClose={() => setDeleting(null)}>
+          <Text style={s.modalTitle}>Xóa sản phẩm?</Text>
+          <Text style={[s.muted, { marginVertical: 20 }]}>
+            Bạn muốn xóa “{deleting?.name}”? Thao tác này không thể hoàn tác.
+          </Text>
+          {!!error && <Text style={s.error}>{error}</Text>}
+          <View style={s.row}>
+            <Button
+              title="Giữ lại"
+              secondary
+              disabled={busy}
+              onPress={() => setDeleting(null)}
+            />
+            <Button
+              title={busy ? "Đang xóa…" : "Xác nhận xóa"}
+              disabled={busy}
+              onPress={() =>
+                void act(async () => {
+                  await remove(deleting!.key);
+                  setDeleting(null);
+                  setNotice("Đã xóa sản phẩm. Thống kê đã cập nhật.");
+                })
+              }
+            />
           </View>
-        </Modal>
+        </AppModal>
       )}
     </ScrollView>
   );
@@ -770,6 +742,17 @@ export default function App() {
   );
 }
 const s = StyleSheet.create({
+  fullWidth: { flex: 1, width: "100%" },
+  pageCompact: { padding: 16, paddingTop: 20 },
+  mobileAccount: { width: "100%", justifyContent: "space-between" },
+  headingCompact: { marginVertical: 24, gap: 14 },
+  headingCopy: { flex: 1, minWidth: 0 },
+  headingCopyCompact: { flexBasis: "100%", flexGrow: 0 },
+  heroCompact: { fontSize: 28, lineHeight: 35 },
+  panelCompact: { padding: 16 },
+  summaryCompact: { flexDirection: "column", alignItems: "flex-start", gap: 6 },
+  searchBoxCompact: { flexBasis: "100%", minWidth: 0 },
+  productActionsCompact: { width: "100%", justifyContent: "flex-end" },
   summaryHeading: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -915,6 +898,8 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   button: {
+    maxWidth: "100%",
+    flexShrink: 1,
     backgroundColor: "#285b45",
     paddingHorizontal: 19,
     paddingVertical: 13,
@@ -922,7 +907,13 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  buttonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+    textAlign: "center",
+    flexShrink: 1,
+  },
   secondary: { backgroundColor: "#eaf0e7" },
   row: {
     flexDirection: "row",
@@ -938,6 +929,8 @@ const s = StyleSheet.create({
     borderColor: "#e3e8df",
   },
   input: {
+    width: "100%",
+    minWidth: 0,
     backgroundColor: "#f9faf7",
     borderWidth: 1,
     borderColor: "#dbe2d8",
@@ -996,21 +989,5 @@ const s = StyleSheet.create({
   tab: { flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: 8 },
   activeTab: { backgroundColor: "#fff" },
   error: { color: "#af3838", marginVertical: 12, lineHeight: 21 },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(18,38,28,0.45)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalScroll: { flexGrow: 1, justifyContent: "center", width: "100%" },
-  modalCard: {
-    backgroundColor: "#fff",
-    padding: 28,
-    borderRadius: 20,
-    width: "100%",
-    maxWidth: 480,
-    alignSelf: "center",
-  },
   modalTitle: { fontSize: 25, fontWeight: "700", color: "#234b39" },
 });

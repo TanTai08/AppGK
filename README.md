@@ -203,6 +203,7 @@ Tìm kiếm, bộ lọc và thống kê chỉ nằm trong bộ nhớ, không th�
 
 ```text
 App.tsx                       Giao diện đăng nhập, admin và ImagePicker
+src/components/AppModal.tsx   Modal giới hạn chiều rộng, safe area và cuộn khi mở bàn phím
 src/firebase.ts               Firebase Auth + Cloud Firestore
 src/firebase.config.json      Cấu hình công khai và UID admin
 src/store.tsx                 onSnapshot, addDoc, setDoc, deleteDoc
