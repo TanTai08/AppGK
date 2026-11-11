@@ -168,7 +168,7 @@ function Auth() {
           disabled={busy}
         />
         <Text style={[s.muted, { textAlign: "center", marginTop: 22 }]}>
-          Phân hệ quản trị sản phẩm · Firebase
+          Quản trị admin
         </Text>
       </View>
     </ScrollView>
@@ -325,7 +325,6 @@ export function DashboardView({
       </View>
       <View style={s.summaryHeading}>
         <Text style={s.sectionTitle}>Kho hàng của bạn</Text>
-        <Text style={s.muted}>Toàn bộ kho · Cập nhật tự động</Text>
       </View>
       <View style={s.statsGrid}>
         {[
@@ -342,7 +341,7 @@ export function DashboardView({
           {
             label: "Giá trị tồn kho",
             value: money(stats.value),
-            detail: "Tổng giá × số lượng · Không phải doanh thu",
+            detail: "Tổng giá × số lượng",
           },
           {
             label: "Cần bổ sung",
@@ -539,9 +538,6 @@ export function DashboardView({
           ))
         )}
       </View>
-      <Text style={[s.muted, { marginTop: 24 }]}>
-        KHO HÀNG · Đơn giản mỗi ngày
-      </Text>
       {sortOpen && (
         <Modal
           visible
