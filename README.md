@@ -2,6 +2,26 @@
 
 React Native + Expo + TypeScript, chạy web và Android/iOS. Cơ sở dữ liệu **Firebase Realtime Database**; đăng nhập/đăng ký dùng **Firebase Authentication**. Đây là lựa chọn React Native trong đề, không phải dự án .NET MAUI.
 
+## Cấu hình dự án hiện tại
+
+Mã nguồn đã có cấu hình SDK công khai của dự án **appgk-73564** trong `src/firebase.config.json` và UID admin **5PVhYz6bvvNL5tNsID3gaFwnIwW2**. Không cần nhập lại `.env` để dùng dự án này. `.env` là tùy chọn ghi đè cấu hình; file cá nhân này không đưa lên GitHub. Mã nguồn không chứa mật khẩu hoặc khóa service account.
+
+Sau khi tải/cập nhật repo:
+
+```powershell
+npm.cmd install
+npm.cmd run setup
+npm.cmd run web
+```
+
+Pixel 7: `npx.cmd expo start --android --localhost --clear`.
+
+Trên Firebase Console, cần bật Email/Password (bạn đã bật), giữ tài khoản có UID trên, **Publish nội dung `database/database.rules.json`** và **import `database/products.json` ở node gốc nếu database chưa có dữ liệu**. Không import đè nếu muốn giữ dữ liệu sản phẩm đã nhập. Việc đẩy code GitHub không tự cập nhật Rules hoặc dữ liệu Firebase. Đăng nhập bằng email/password của tài khoản admin; người đăng ký mới không tự có quyền quản trị.
+
+Nếu `.env` cũ chứa giá trị Firebase khác, xóa các giá trị ghi đè đó hoặc đổi sang cấu hình đúng, rồi khởi động lại Expo với `--clear`. Bản mới tự dùng cấu hình mặc định khi các biến trống.
+
+Các phần dưới hướng dẫn tạo một dự án Firebase khác nếu cần. Khi đổi dự án, cập nhật cả config và UID trong Rules.
+
 ## Đáp ứng đề bài
 
 | Yêu cầu                            | Thực hiện                                                     |
@@ -39,7 +59,7 @@ Mỗi bản ghi có đúng bốn trường. `sp01` hoặc khóa do Firebase `pus
 4. Authentication → Users → Add user: tạo email/password quản trị (mật khẩu ít nhất 8 ký tự). Sao chép **User UID** của tài khoản này. Có thể đăng ký trong app rồi lấy UID, nhưng tạo trước trên Console dễ hơn.
 5. Build → Realtime Database → Create database → chọn khu vực → bắt đầu **Locked mode**. Sao chép Database URL đúng của dự án (có thể kết thúc bằng `firebasedatabase.app` hoặc `firebaseio.com`). Không tạo Cloud Firestore thay cho Realtime Database.
 6. Realtime Database → Data → ở node gốc chọn menu ⋮ → **Import JSON** → chọn `database/products.json`. Nhập ở node gốc để có đường dẫn `/products/sp01`, không tạo `/products/products`.
-7. Mở `database/database.rules.json`, thay **tất cả** `REPLACE_ADMIN_UID` bằng UID bước 4. Dán toàn bộ vào tab **Rules** của Realtime Database rồi **Publish**. Không để rules mở cho mọi người.
+7. Mở `database/database.rules.json`. File đã có UID admin của AppGK; nếu dùng dự án/tài khoản khác, thay tất cả UID hiện tại bằng UID bước 4. Dán toàn bộ vào tab **Rules** của Realtime Database rồi **Publish**. Không để rules mở cho mọi người.
 8. Authentication → Settings → Authorized domains: thêm `localhost` nếu chưa có để thử web.
 
 Quyền admin được kiểm tra thật trên Firebase Rules, không chỉ ẩn nút giao diện. Người đăng ký mới đăng nhập được nhưng chưa có quyền đọc/ghi sản phẩm. Chỉ UID đã cấu hình trong rules mới được phép. Không cần thêm trường `role` vào sản phẩm hoặc node admin trong database.
@@ -61,7 +81,7 @@ npm.cmd install
 npm.cmd run setup
 ```
 
-Mở `.env`, thay cấu hình SQLite cũ (nếu có) bằng các biến trong `.env.example`, điền thông tin Firebase thực của bạn:
+Với dự án AppGK hiện tại không cần điền `.env`. Nếu dùng dự án khác, điền các giá trị ghi đè:
 
 ```dotenv
 EXPO_PUBLIC_FIREBASE_API_KEY=gia_tri_apiKey
@@ -106,7 +126,7 @@ Chấp nhận **Y** nếu CLI hỏi cài Expo Go tương thích SDK 54. Mở ả
 - Chụp Pixel 7 khi chọn ảnh và sau khi lưu ảnh trong danh sách.
 - Không chụp mật khẩu hoặc private key. File JSON không chứa tài khoản; tạo tài khoản lại trong Authentication khi chuyển dự án.
 
-**Repo chưa gắn dự án Firebase của người dùng. Ảnh chụp CSDL thật cần thực hiện sau bước thiết lập; không có ảnh Console giả trong repo.** Chỉ import JSON chưa đủ: phải bật Authentication, cấu hình `.env` và Publish Rules.
+**Repo đã gắn cấu hình SDK và UID của dự án appgk-73564. Ảnh chụp CSDL thật vẫn cần chụp trong Console sau khi import dữ liệu; không có ảnh Console giả trong repo.** Chỉ import JSON chưa đủ: phải bật Authentication, cấu hình `.env` và Publish Rules.
 
 ## 4. Cấu trúc và thư viện
 
@@ -136,17 +156,17 @@ npx.cmd expo export --platform android --output-dir android-export
 
 Test tự động kiểm tra file JSON đủ bốn trường, ảnh nhúng hợp lệ, chặn số âm/trường thiếu/ảnh lớn và loại metadata trước khi ghi. Đây chưa thay thế kiểm thử Firebase thật: sau thiết lập, thử admin CRUD trên web/Android và tài khoản thường bị từ chối. Có thể dùng Rules Playground trong Console: giả lập UID admin và UID khác, kiểm tra đọc `/products` và ghi `/products/test`, thử payload có trường thứ năm phải bị từ chối.
 
-| Lỗi                                     | Cách xử lý                                                                                                        |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| PowerShell chặn npm.ps1                 | Dùng `npm.cmd`, `npx.cmd` như các lệnh trên.                                                                      |
-| `expo/tsconfig.base` đỏ                 | `npm.cmd install`, mở đúng thư mục có package.json, chọn TypeScript: Use Workspace Version rồi Restart TS Server. |
-| Màn hình Thiết lập Firebase             | Điền đủ 5 biến config SDK trong `.env`; dừng Expo rồi chạy lại với `--clear`.                                     |
-| Tài khoản chưa có quyền admin           | So khớp UID trong Authentication, `.env` và Database Rules; khởi động lại Expo.                                   |
-| Permission denied                       | Publish đúng Rules vào đúng database/project, đăng nhập tài khoản admin.                                          |
-| Invalid API key / operation not allowed | Kiểm tra config Web app và bật Email/Password trong Authentication.                                               |
-| Không thấy ảnh trên Pixel 7             | Kéo ảnh vào emulator trước, cấp quyền thư viện ảnh, chọn JPG/PNG/WebP dưới 700 KB.                                |
-| Đổi .env nhưng chưa cập nhật            | Dừng Expo và chạy lại `npx.cmd expo start --clear`.                                                               |
-| Màn hình tối/không nhập được            | Nhấn Back một lần để đóng hộp thoại hệ thống; reload app. Các modal thêm/xóa chỉ được mount khi mở.               |
+| Lỗi                                     | Cách xử lý                                                                                                                       |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| PowerShell chặn npm.ps1                 | Dùng `npm.cmd`, `npx.cmd` như các lệnh trên.                                                                                     |
+| `expo/tsconfig.base` đỏ                 | `npm.cmd install`, mở đúng thư mục có package.json, chọn TypeScript: Use Workspace Version rồi Restart TS Server.                |
+| Màn hình Thiết lập Firebase             | Kiểm tra cấu hình mặc định trong src/firebase.config.json và các biến ghi đè trong `.env`; dừng Expo rồi chạy lại với `--clear`. |
+| Tài khoản chưa có quyền admin           | So khớp UID trong Authentication, `.env` và Database Rules; khởi động lại Expo.                                                  |
+| Permission denied                       | Publish đúng Rules vào đúng database/project, đăng nhập tài khoản admin.                                                         |
+| Invalid API key / operation not allowed | Kiểm tra config Web app và bật Email/Password trong Authentication.                                                              |
+| Không thấy ảnh trên Pixel 7             | Kéo ảnh vào emulator trước, cấp quyền thư viện ảnh, chọn JPG/PNG/WebP dưới 700 KB.                                               |
+| Đổi .env nhưng chưa cập nhật            | Dừng Expo và chạy lại `npx.cmd expo start --clear`.                                                                              |
+| Màn hình tối/không nhập được            | Nhấn Back một lần để đóng hộp thoại hệ thống; reload app. Các modal thêm/xóa chỉ được mount khi mở.                              |
 
 ### Kiểm thử Database Rules với emulator (tùy chọn)
 

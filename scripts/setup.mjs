@@ -8,10 +8,10 @@ if (!existsSync(".env")) {
   console.log("Đã tạo .env.");
 } else
   console.log(
-    "Giữ nguyên .env hiện tại. Nếu còn API SQLite cũ, thay nội dung bằng .env.example.",
+    "Giữ nguyên .env hiện tại. Các biến FIREBASE không trống sẽ ghi đè cấu hình mặc định.",
   );
 console.log(
-  "Điền cấu hình Firebase trong .env theo README. Không cần chạy backend Node/SQLite.",
+  "Đã có cấu hình công khai Firebase appgk-73564 và UID admin trong mã nguồn. Publish database/database.rules.json trong Firebase Console và import database/products.json nếu chưa có dữ liệu. Không cần backend Node/SQLite.",
 );
 console.log(
   "Web: npm.cmd run web | Android: npx.cmd expo start --android --localhost --clear",

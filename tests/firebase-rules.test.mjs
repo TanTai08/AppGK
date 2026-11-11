@@ -41,7 +41,10 @@ test(
     const rules = readFileSync(
       "database/database.rules.json",
       "utf8",
-    ).replaceAll("REPLACE_ADMIN_UID", "admin-test");
+    ).replaceAll(
+      JSON.parse(readFileSync("src/firebase.config.json", "utf8")).adminUid,
+      "admin-test",
+    );
     const uploaded = await fetch(
       "http://127.0.0.1:9000/.settings/rules.json?ns=demo-appgk",
       {

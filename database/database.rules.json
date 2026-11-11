@@ -3,9 +3,9 @@
     ".read": false,
     ".write": false,
     "products": {
-      ".read": "auth != null && auth.uid === 'REPLACE_ADMIN_UID'",
+      ".read": "auth != null && auth.uid === '5PVhYz6bvvNL5tNsID3gaFwnIwW2'",
       "$product": {
-        ".write": "auth != null && auth.uid === 'REPLACE_ADMIN_UID'",
+        ".write": "auth != null && auth.uid === '5PVhYz6bvvNL5tNsID3gaFwnIwW2'",
         ".validate": "newData.hasChildren(['name', 'price', 'soluong', 'image'])",
         "name": {
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120"
