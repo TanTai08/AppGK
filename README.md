@@ -2,29 +2,79 @@
 
 Ứng dụng quản lý sản phẩm đơn giản bằng **React Native + Expo + TypeScript**, chạy chung mã trên Android, iOS và web. Backend **Express + SQLite**, yêu cầu **Node.js 24 LTS**.
 
-## Chạy ứng dụng
+## Chạy bằng VS Code trên Windows và máy ảo Pixel 7
 
-```bash
+### 1. Cài công cụ
+
+- Node.js **24 LTS** (`node -v` phải hiển thị `v24...`), Git và Visual Studio Code.
+- Android Studio → SDK Manager: cài Android SDK Platform, Android SDK Platform-Tools và Android Emulator.
+- Android Studio → Device Manager → Create Device → **Pixel 7** → chọn Android API 35 với Google APIs → Finish → nhấn ▶. Chờ Android khởi động hoàn toàn.
+- Trên Windows, đặt biến `ANDROID_HOME` thành đường dẫn SDK hiển thị trong SDK Manager (thường là `%LOCALAPPDATA%\Android\Sdk`) và thêm `%ANDROID_HOME%\platform-tools` vào `Path`. Mở lại VS Code sau khi sửa biến môi trường.
+
+### 2. Mở đúng thư mục
+
+Nếu chưa tải mã nguồn, chạy PowerShell:
+
+```powershell
+git clone https://github.com/TanTai08/AppGK.git
+cd AppGK
+code .
+```
+
+Nếu đã có repo, **không clone lại**. Mở thư mục chứa `package.json` bằng File → Open Folder, rồi chạy `git pull` để lấy bản mới. Nếu thư mục của bạn lồng nhau như `D:\AppGK\AppGK`, phải mở thư mục bên trong.
+
+### 3. Cài đặt và khởi động backend
+
+Trong terminal VS Code, tại thư mục có `package.json`:
+
+```powershell
 npm install
-cp .env.example .env
+npm run setup
 npm run server
 ```
 
-Mở terminal thứ hai:
+`setup` tạo `.env` nếu chưa có và giữ nguyên cấu hình đã có. Backend đọc `.env`, tự tạo SQLite tại `server/data/app.db`. Khi thấy `API ready on port 3001`, giữ terminal chạy. Có thể mở `http://localhost:3001/api/health` để kiểm tra; kết quả là `{"ok":true}`.
 
-```bash
-npm run web
-# Hoặc: npm run android / npm run ios
-# Điện thoại thật: npm start, sau đó quét QR bằng Expo Go tương thích SDK 54.
+### 4. Chạy ứng dụng trên Pixel 7
+
+Giữ máy ảo đang mở. Mở terminal thứ hai trong cùng thư mục:
+
+```powershell
+npm run android
 ```
 
-Web mở tại `http://localhost:8081`. Tạo tài khoản ngay trên giao diện; không có tài khoản hay mật khẩu mặc định. Khởi động lại Expo sau khi sửa `.env`.
+Expo sẽ cài/mở Expo Go tương thích SDK 54 trên máy ảo. Đăng ký tài khoản mới rồi đăng nhập và thêm/sửa/xóa sản phẩm. Không có tài khoản mặc định. Không cần build APK để chạy thử bằng Expo Go.
 
-- Web/iOS simulator: `EXPO_PUBLIC_API_URL=http://localhost:3001`.
-- Android emulator: `EXPO_PUBLIC_API_URL=http://10.0.2.2:3001`.
-- Điện thoại thật: dùng IP LAN của máy chạy backend, ví dụ `http://192.168.1.10:3001`. Hai thiết bị cùng mạng; cho phép cổng 3001 qua tường lửa.
-- `PORT`, `DATABASE_PATH`, `CORS_ORIGINS` là biến môi trường phía server. Muốn nạp chúng từ `.env`, dùng `node --env-file=.env server/index.mjs` (lệnh `npm run server` dùng biến môi trường hiện tại hoặc giá trị mặc định).
-- Android/iOS cần Android Studio/Xcode hoặc Expo Go tương thích. Xây dựng phát hành cần cấu hình ký ứng dụng riêng.
+Có thể dùng Terminal → Run Task trong VS Code, chọn `AppGK: Backend`, sau đó `AppGK: Android Pixel 7`.
+
+### Địa chỉ API
+
+File `.env` mặc định để trống `EXPO_PUBLIC_API_URL`; ứng dụng tự chọn:
+
+| Nền tảng                   | API mặc định            |
+| -------------------------- | ----------------------- |
+| Pixel 7 / Android emulator | `http://10.0.2.2:3001`  |
+| Web / iOS simulator        | `http://localhost:3001` |
+
+`10.0.2.2` là địa chỉ máy tính từ Android emulator. Nếu `.env` cũ đang đặt `http://localhost:3001`, hãy sửa thành `EXPO_PUBLIC_API_URL=` hoặc `EXPO_PUBLIC_API_URL=http://10.0.2.2:3001` rồi chạy lại `npm run android:clear`.
+
+Điện thoại thật cần đặt `EXPO_PUBLIC_API_URL=http://IP_LAN_MAY_TINH:3001`, hai thiết bị cùng mạng và cho phép cổng 3001 qua tường lửa. Sau đó chạy `npm start` và quét QR bằng Expo Go tương thích SDK 54.
+
+Để chạy web: giữ backend chạy và dùng `npm run web`, mở `http://localhost:8081`. iOS simulator cần macOS/Xcode và `npm run ios`.
+
+### Lỗi thường gặp
+
+| Lỗi                                       | Cách xử lý                                                                                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `destination path 'AppGK' already exists` | Không clone lại; mở thư mục AppGK có `package.json`.                                                                                                       |
+| Không tìm thấy `package.json`             | Terminal đang ở sai thư mục; chuyển vào thư mục chứa file.                                                                                                 |
+| `expo/tsconfig.base` chưa tìm thấy        | Chạy `npm install`; trong VS Code dùng `TypeScript: Restart TS Server` sau khi cài xong.                                                                   |
+| PowerShell chặn `npm.ps1`                 | Dùng `npm.cmd` thay `npm`, hoặc đổi terminal VS Code sang Command Prompt.                                                                                  |
+| Không tìm thấy thiết bị / `adb`           | Mở Pixel 7, kiểm tra `adb devices`; phải thấy `emulator-... device`. Kiểm tra `ANDROID_HOME` và `Path`.                                                    |
+| Không kết nối được API                    | Kiểm tra backend đang chạy, API là `10.0.2.2:3001` trên emulator; thử mở `http://10.0.2.2:3001/api/health` trong Chrome của máy ảo.                        |
+| Expo Go không tương thích                 | Để Expo CLI cài bản tương thích SDK 54 trên emulator; có thể tải bản Android phù hợp từ `https://expo.dev/go?sdkVersion=54&platform=android&device=false`. |
+| Expo không tải được ứng dụng              | Thử `npx expo start --android --localhost --clear` khi máy ảo đang mở.                                                                                     |
+| Cổng 3001 đang được dùng                  | Dừng backend cũ trước khi chạy lại; nếu đổi cổng, đổi cả địa chỉ API trong `.env`.                                                                         |
 
 ## Chức năng
 
@@ -47,16 +97,16 @@ Mật khẩu dùng scrypt với salt ngẫu nhiên; token phiên ngẫu nhiên 2
 
 ## API
 
-| Phương thức | Đường dẫn | Chức năng |
-|---|---|---|
-| POST | `/api/auth/register` | `{name,email,password}` |
-| POST | `/api/auth/login` | `{email,password}` |
-| GET | `/api/auth/me` | Thông tin tài khoản |
-| POST | `/api/auth/logout` | Thu hồi phiên hiện tại |
-| GET | `/api/products` | Danh sách của tài khoản |
-| POST | `/api/products` | `{name,sku,price,quantity}` |
-| PUT | `/api/products/:id` | Cập nhật toàn bộ thông tin sản phẩm |
-| DELETE | `/api/products/:id` | Xóa sản phẩm |
+| Phương thức | Đường dẫn            | Chức năng                           |
+| ----------- | -------------------- | ----------------------------------- |
+| POST        | `/api/auth/register` | `{name,email,password}`             |
+| POST        | `/api/auth/login`    | `{email,password}`                  |
+| GET         | `/api/auth/me`       | Thông tin tài khoản                 |
+| POST        | `/api/auth/logout`   | Thu hồi phiên hiện tại              |
+| GET         | `/api/products`      | Danh sách của tài khoản             |
+| POST        | `/api/products`      | `{name,sku,price,quantity}`         |
+| PUT         | `/api/products/:id`  | Cập nhật toàn bộ thông tin sản phẩm |
+| DELETE      | `/api/products/:id`  | Xóa sản phẩm                        |
 
 Sau đăng nhập, gửi header `Authorization: Bearer <token>` cho các API được bảo vệ.
 
