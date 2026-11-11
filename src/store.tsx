@@ -7,12 +7,13 @@ import {
   User,
 } from "firebase/auth";
 import {
-  onValue,
-  ref,
-  push,
-  set,
-  remove as deleteRecord,
-} from "firebase/database";
+  onSnapshot,
+  collection,
+  doc,
+  addDoc,
+  setDoc,
+  deleteDoc,
+} from "firebase/firestore";
 import { auth, db, configured, adminUid } from "./firebase";
 import { productData, ProductData } from "./product.mjs";
 export type Product = ProductData & { key: string }; // key is UI metadata, never written to Firebase.
@@ -25,10 +26,10 @@ export function errorMessage(error: unknown) {
   if (/weak-password/.test(code)) return "Mật khẩu phải có ít nhất 8 ký tự.";
   if (/too-many-requests/.test(code))
     return "Quá nhiều yêu cầu. Vui lòng thử lại sau.";
-  if (/network-request-failed/.test(code))
+  if (/network-request-failed|unavailable|deadline-exceeded/.test(code))
     return "Không kết nối được Firebase. Kiểm tra Internet.";
   if (/permission.denied|PERMISSION_DENIED/i.test(code))
-    return "Không có quyền truy cập. Kiểm tra UID admin và Database Rules.";
+    return "Không có quyền truy cập. Kiểm tra UID admin và Firestore Rules.";
   return error instanceof Error
     ? error.message
     : "Có lỗi xảy ra. Vui lòng thử lại.";
@@ -57,12 +58,12 @@ function useAppStore() {
     }
     setProductsLoading(true);
     setLoadError("");
-    return onValue(
-      ref(db, "products"),
+    return onSnapshot(
+      collection(db, "products"),
       (snapshot) => {
         const values: Product[] = [];
-        snapshot.forEach((child) => {
-          values.push({ ...child.val(), key: child.key! });
+        snapshot.docs.forEach((item) => {
+          values.push({ ...item.data(), key: item.id } as Product);
         });
         setProducts(values.reverse());
         setProductsLoading(false);
@@ -100,10 +101,8 @@ function useAppStore() {
       throw new Error("Chỉ quản trị viên được phép thao tác.");
     const data = productData(values);
     try {
-      await set(
-        key ? ref(db, `products/${key}`) : push(ref(db, "products")),
-        data,
-      );
+      if (key) await setDoc(doc(db, "products", key), data);
+      else await addDoc(collection(db, "products"), data);
     } catch (error) {
       throw new Error(errorMessage(error));
     }
@@ -112,7 +111,7 @@ function useAppStore() {
     if (!isAdmin || !db)
       throw new Error("Chỉ quản trị viên được phép thao tác.");
     try {
-      await deleteRecord(ref(db, `products/${key}`));
+      await deleteDoc(doc(db, "products", key));
     } catch (error) {
       throw new Error(errorMessage(error));
     }

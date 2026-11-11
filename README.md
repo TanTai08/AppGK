@@ -1,164 +1,204 @@
-# AppGK — Phân hệ admin sản phẩm
+# AppGK — Quản trị sản phẩm với Cloud Firestore
 
-React Native + Expo + TypeScript, chạy web và Android/iOS. Cơ sở dữ liệu **Firebase Realtime Database**; đăng nhập/đăng ký dùng **Firebase Authentication**. Đây là lựa chọn React Native trong đề, không phải dự án .NET MAUI.
+Ứng dụng **React Native + Expo + TypeScript**, chạy web và Android/iOS. Đăng nhập bằng **Firebase Authentication**, lưu sản phẩm trên **Cloud Firestore (database `(default)`)**.
 
-## Cấu hình dự án hiện tại
+Mỗi sản phẩm chỉ có đúng **`name`, `price`, `soluong`, `image`**. Document ID là khóa ngoài bản ghi; không thêm `id`, `key`, SKU, ngày tạo hay trường thống kê vào dữ liệu.
 
-Mã nguồn đã có cấu hình SDK công khai của dự án **appgk-73564** trong `src/firebase.config.json` và UID admin **5PVhYz6bvvNL5tNsID3gaFwnIwW2**. Không cần nhập lại `.env` để dùng dự án này. `.env` là tùy chọn ghi đè cấu hình; file cá nhân này không đưa lên GitHub. Mã nguồn không chứa mật khẩu hoặc khóa service account.
+## 1. Thiết lập Firestore trên Firebase Console
 
-Sau khi tải/cập nhật repo:
+Dự án hiện tại: **appgk-73564**. Cấu hình SDK đã có trong `src/firebase.config.json`; không cần tạo dự án mới. Tài khoản admin giữ nguyên UID **5PVhYz6bvvNL5tNsID3gaFwnIwW2**.
+
+1. Mở https://console.firebase.google.com → chọn **AppGK**.
+2. Chọn **Databases & Storage → Firestore Database**. Nếu chưa có, bấm **Create database** → chọn **Standard edition**, database ID **`(default)`**, khu vực phù hợp → bắt đầu **Production mode**. Nếu đã thấy tab Data và nút Start collection thì database đã được tạo.
+3. Vào tab **Rules** của **Firestore**. Sao chép toàn bộ file **`database/firestore.rules`** trong repo, dán vào và nhấn **Publish**. Không dán file JSON Rules cũ của Realtime Database vào đây.
+4. Vào **Authentication → Sign-in method** và kiểm tra **Email/Password = Enabled**. Trong **Users**, giữ tài khoản có UID admin trên. Dùng email/password của chính tài khoản đó khi chạy app hoặc nhập dữ liệu. Người đăng ký mới không tự được cấp quyền quản trị.
+5. Trong Firestore → **Indexes → Single field**, thêm exemption cho collection group **`products`**, field **`image`**, tắt toàn bộ index của trường này. Tìm kiếm/sắp xếp hiện tính trên giao diện, không cần đánh chỉ mục chuỗi ảnh. Cấu hình tương đương có trong `database/firestore.indexes.json`.
+6. Nếu dùng web, kiểm tra Authentication → Settings → Authorized domains có `localhost`.
+
+Không cần bấm Start collection nếu sẽ dùng công cụ nhập JSON ở mục 3: công cụ tự tạo collection/document. Nếu tạo bằng tay, dùng collection **products**; mỗi document nhập `name` kiểu string, `price` và `soluong` kiểu number (số lượng nguyên), `image` là chuỗi data URI đầy đủ. Với ảnh base64, dùng công cụ nhập sẽ thuận tiện hơn.
+
+> Đẩy mã lên GitHub không tự Publish Firestore Rules, tạo database hoặc chép dữ liệu. Các bước Console phải thực hiện trong tài khoản Firebase của bạn. Bản chuyển đổi không xóa hay sửa dữ liệu Realtime Database cũ.
+
+## 2. Cập nhật mã và chạy ứng dụng
+
+Cần **Node.js 24 LTS**, Git, VS Code. Trong PowerShell, mở thư mục có `package.json` (ví dụ `D:\AppGK\AppGK`):
 
 ```powershell
+cd D:\AppGK\AppGK
+git pull
 npm.cmd install
 npm.cmd run setup
-npm.cmd run web
 ```
 
-Pixel 7: `npx.cmd expo start --android --localhost --clear`.
-
-Trên Firebase Console, cần bật Email/Password (bạn đã bật), giữ tài khoản có UID trên, **Publish nội dung `database/database.rules.json`** và **import `database/products.json` ở node gốc nếu database chưa có dữ liệu**. Không import đè nếu muốn giữ dữ liệu sản phẩm đã nhập. Việc đẩy code GitHub không tự cập nhật Rules hoặc dữ liệu Firebase. Đăng nhập bằng email/password của tài khoản admin; người đăng ký mới không tự có quyền quản trị.
-
-Nếu `.env` cũ chứa giá trị Firebase khác, xóa các giá trị ghi đè đó hoặc đổi sang cấu hình đúng, rồi khởi động lại Expo với `--clear`. Bản mới tự dùng cấu hình mặc định khi các biến trống.
-
-Các phần dưới hướng dẫn tạo một dự án Firebase khác nếu cần. Khi đổi dự án, cập nhật cả config và UID trong Rules.
-
-## Tìm kiếm và thống kê
-
-- Tìm theo tên, hỗ trợ tiếng Việt có/không dấu (`ca phe`, `dak lak`), nhiều từ và chữ hoa/thường.
-- Bốn thẻ tổng quan: số mặt hàng, tổng số lượng tồn, giá trị tồn kho (`price × soluong`), số mặt hàng cần bổ sung.
-- Thống kê luôn tính trên **toàn bộ kho**, độc lập bộ lọc. Giá trị tồn kho không phải doanh thu.
-- Lọc Tất cả / Còn hàng (>0) / Sắp hết (1–5) / Hết hàng (0). Mỗi bộ lọc có số đếm.
-- Sắp xếp mặc định, tên A–Z, giá tăng/giảm, tồn kho tăng; có nút đặt lại và trạng thái không tìm thấy.
-- Thông báo sau khi lưu/xóa; số liệu tự tính lại khi subscription Firebase nhận dữ liệu mới.
-- Giao diện web/điện thoại: thẻ tổng quan, thanh tìm kiếm, nhãn tồn kho và ảnh sản phẩm.
-
-Mọi tìm kiếm, bộ lọc, thứ tự hiển thị và thống kê đều nằm ở giao diện/bộ nhớ. **Không thêm trường, node thống kê hoặc chỉ mục tìm kiếm vào CSDL.** Mỗi sản phẩm vẫn chỉ có `name`, `price`, `soluong`, `image`. Không có biểu đồ doanh thu theo thời gian vì database không lưu đơn hàng/lịch sử.
-
-## Đáp ứng đề bài
-
-| Yêu cầu                            | Thực hiện                                                     |
-| ---------------------------------- | ------------------------------------------------------------- |
-| Nhập và hiển thị sản phẩm trên web | Form + danh sách có tên, giá, số lượng, hình ảnh              |
-| Firebase hoặc MongoDB              | Firebase Realtime Database                                    |
-| Đăng nhập, sửa, xóa                | Email/password, sửa form, xác nhận xóa                        |
-| Nhập và hiển thị ảnh trên di động  | Expo ImagePicker, React Native Image                          |
-| Phân hệ admin                      | Database Rules chỉ cho UID quản trị được đọc/ghi              |
-| File CSDL bắt buộc                 | `database/products.json`, chứa 3 sản phẩm và ảnh nhúng đầy đủ |
-| Chỉ bốn trường                     | `name`, `price`, `soluong`, `image`                           |
-
-Mỗi bản ghi có đúng bốn trường. `sp01` hoặc khóa do Firebase `push()` sinh ra là **khóa của node**, không phải thuộc tính của sản phẩm. Không có `id`, `sku`, `quantity`, `user_id`, thời gian tạo hoặc trường phụ trong bản ghi. Tài khoản nằm trong dịch vụ Authentication, không tạo bảng tài khoản trong database.
-
-```json
-{
-  "products": {
-    "sp01": {
-      "name": "Cà phê rang",
-      "price": 85000,
-      "soluong": 20,
-      "image": "data:image/png;base64,..."
-    }
-  }
-}
-```
-
-Đoạn trên minh họa; file nộp `database/products.json` có dữ liệu ảnh base64 hoàn chỉnh, không có dấu `...`. Ảnh mẫu là minh họa tự tạo. Ảnh chọn từ máy/điện thoại được lưu dạng data URI, tối đa 700 KB, nên JSON xuất ra có luôn ảnh, không phụ thuộc Firebase Storage hay file trên máy. Cách này phù hợp bài tập nhỏ; tải toàn bộ danh sách/ảnh không phù hợp kho lớn.
-
-## 1. Tạo Firebase (chỉ cần làm một lần)
-
-1. Mở https://console.firebase.google.com → Create a project. Có thể tắt Google Analytics. Dùng gói Spark cho bài tập nhỏ.
-2. Project settings → General → Your apps → chọn biểu tượng **Web `</>`**, đăng ký app. Sao chép các giá trị `firebaseConfig`.
-3. Build → Authentication → Get started → Sign-in method → bật **Email/Password**.
-4. Authentication → Users → Add user: tạo email/password quản trị (mật khẩu ít nhất 8 ký tự). Sao chép **User UID** của tài khoản này. Có thể đăng ký trong app rồi lấy UID, nhưng tạo trước trên Console dễ hơn.
-5. Build → Realtime Database → Create database → chọn khu vực → bắt đầu **Locked mode**. Sao chép Database URL đúng của dự án (có thể kết thúc bằng `firebasedatabase.app` hoặc `firebaseio.com`). Không tạo Cloud Firestore thay cho Realtime Database.
-6. Realtime Database → Data → ở node gốc chọn menu ⋮ → **Import JSON** → chọn `database/products.json`. Nhập ở node gốc để có đường dẫn `/products/sp01`, không tạo `/products/products`.
-7. Mở `database/database.rules.json`. File đã có UID admin của AppGK; nếu dùng dự án/tài khoản khác, thay tất cả UID hiện tại bằng UID bước 4. Dán toàn bộ vào tab **Rules** của Realtime Database rồi **Publish**. Không để rules mở cho mọi người.
-8. Authentication → Settings → Authorized domains: thêm `localhost` nếu chưa có để thử web.
-
-Quyền admin được kiểm tra thật trên Firebase Rules, không chỉ ẩn nút giao diện. Người đăng ký mới đăng nhập được nhưng chưa có quyền đọc/ghi sản phẩm. Chỉ UID đã cấu hình trong rules mới được phép. Không cần thêm trường `role` vào sản phẩm hoặc node admin trong database.
-
-## 2. Chạy trên VS Code / Windows
-
-Cài Node.js **24 LTS**, Git, VS Code. Nếu chưa tải repo:
+Nếu chưa tải repo:
 
 ```powershell
 git clone https://github.com/TanTai08/AppGK.git
 cd AppGK
 code .
-```
-
-Nếu đã có repo: mở đúng thư mục có `package.json`, chạy `git pull`; không clone lại vào thư mục đã tồn tại. Ví dụ cấu trúc lồng nhau trước đây dùng `cd D:\AppGK\AppGK`.
-
-```powershell
 npm.cmd install
-npm.cmd run setup
 ```
 
-Với dự án AppGK hiện tại không cần điền `.env`. Nếu dùng dự án khác, điền các giá trị ghi đè:
+Không clone lại vào thư mục đã tồn tại. `npm.cmd` và `npx.cmd` tránh lỗi PowerShell chặn `npm.ps1`.
 
-```dotenv
-EXPO_PUBLIC_FIREBASE_API_KEY=gia_tri_apiKey
-EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=ten-du-an.firebaseapp.com
-EXPO_PUBLIC_FIREBASE_DATABASE_URL=https://URL_DATABASE_THUC_CUA_BAN
-EXPO_PUBLIC_FIREBASE_PROJECT_ID=ten-du-an
-EXPO_PUBLIC_FIREBASE_APP_ID=gia_tri_appId
-EXPO_PUBLIC_FIREBASE_ADMIN_UID=UID_tai_khoan_quan_tri
-```
-
-UID trong `.env` và hai vị trí trong Database Rules phải giống nhau. Đây là cấu hình SDK phía client; không đưa service-account private key hay mật khẩu quản trị vào `.env` hoặc Git. Không commit `.env` thật.
-
-### Web (phần 8 điểm)
+**Web:**
 
 ```powershell
 npm.cmd run web
 ```
 
-Mở địa chỉ Expo hiển thị (thường `http://localhost:8081`). Đăng nhập bằng tài khoản quản trị đã tạo. Thêm tên, giá, số lượng; bấm Chọn hình ảnh → chọn JPG/PNG/WebP nhỏ hơn 700 KB → Lưu. Sửa và xóa ở từng sản phẩm. Firebase `onValue` tự cập nhật danh sách trên các thiết bị đang mở.
+Mở địa chỉ Expo hiển thị, thường là `http://localhost:8081`. Đăng nhập bằng tài khoản admin, thử thêm sản phẩm có ảnh, sửa và xóa.
 
-### Android Pixel 7 (phần nhập ảnh trên di động)
+**Pixel 7 Android:**
 
-1. Android Studio → Device Manager → tạo Pixel 7 (API 35) → nhấn ▶ và chờ khởi động.
-2. Cấu hình `ANDROID_HOME` tới SDK, thêm `platform-tools` vào PATH nếu máy chưa nhận `adb`.
+1. Android Studio → Device Manager → khởi động Pixel 7 (API 35 hoặc máy ảo tương thích).
+2. SDK Manager phải có Platform-Tools/Emulator; cấu hình `ANDROID_HOME` và `Path` nếu `adb devices` chưa nhận thiết bị.
 3. Chạy:
 
 ```powershell
 npx.cmd expo start --android --localhost --clear
 ```
 
-Chấp nhận **Y** nếu CLI hỏi cài Expo Go tương thích SDK 54. Mở ảnh trên máy ảo bằng cách kéo file JPG/PNG nhỏ vào máy ảo hoặc tải ảnh vào Downloads. Trong app: Thêm sản phẩm → Chọn hình ảnh → cấp quyền nếu được hỏi → chọn ảnh → Lưu. Xác nhận ảnh hiện trong danh sách; mở web để thấy cùng dữ liệu.
+Chọn **Y** nếu được hỏi cài Expo Go phù hợp SDK 54. Kéo một ảnh JPG/PNG nhỏ vào máy ảo hoặc tải ảnh vào Downloads, rồi chọn ảnh trong form sản phẩm. Web và Android cần Internet để truy cập Firestore thật.
 
-**Không cần `npm run server`, SQLite hay `10.0.2.2:3001` nữa.** Web/máy ảo cần Internet để kết nối Firebase. iOS dùng `npm run ios` trên macOS/Xcode.
+Không cần server Node/SQLite, địa chỉ `10.0.2.2:3001` hoặc Realtime Database URL. `EXPO_PUBLIC_FIREBASE_DATABASE_URL` cũ không còn được sử dụng. iOS simulator cần macOS/Xcode và `npm run ios`.
 
-## 3. Nộp bài và chụp bằng chứng
+### Dùng dự án Firebase khác
 
-- Link source: https://github.com/TanTai08/AppGK
-- File database bắt buộc: `database/products.json`. Sau khi nhập/sửa sản phẩm thật, nên nộp bản mới nhất: Firebase Console → Realtime Database → Data → menu ở node gốc → **Export JSON**, lưu thành `products-final.json`.
-- Nộp thêm `database/database.rules.json` đã thay UID, và README mô tả cách chạy/thư viện.
-- Ảnh CSDL: mở Console → Data → mở `/products/sp01` hoặc một khóa sản phẩm; chụp rõ tên database và đúng bốn trường. `image` là chuỗi base64 dài, có thể thu gọn để dễ nhìn.
-- Chụp màn hình web có danh sách và ảnh; màn hình form thêm/sửa; màn hình đăng nhập.
-- Chụp Pixel 7 khi chọn ảnh và sau khi lưu ảnh trong danh sách.
-- Không chụp mật khẩu hoặc private key. File JSON không chứa tài khoản; tạo tài khoản lại trong Authentication khi chuyển dự án.
+Các giá trị không trống trong `.env` sẽ ghi đè mặc định:
 
-**Repo đã gắn cấu hình SDK và UID của dự án appgk-73564. Ảnh chụp CSDL thật vẫn cần chụp trong Console sau khi import dữ liệu; không có ảnh Console giả trong repo.** Chỉ import JSON chưa đủ: phải bật Authentication, cấu hình `.env` và Publish Rules.
-
-## 4. Cấu trúc và thư viện
-
-```text
-App.tsx                      Giao diện đăng nhập/admin, chọn và hiển thị ảnh
-src/firebase.ts              Khởi tạo Firebase từ .env
-src/store.tsx                 Auth, subscription realtime, thêm/sửa/xóa
-src/inventory.mjs             Tìm kiếm, bộ lọc, sắp xếp, thống kê chỉ đọc
-src/product.mjs               Kiểm tra và chọn đúng bốn trường trước khi ghi
-src/product.d.mts             Kiểu dữ liệu cho TypeScript
-scripts/setup.mjs             Tạo .env, hướng dẫn khởi động
-tests/product.test.mjs        Kiểm tra schema JSON và payload (thư mục tests)
-database/products.json        Dữ liệu mẫu đầy đủ để import/nộp
-database/database.rules.json  Quyền admin, bắt buộc bốn trường
-.vscode/tasks.json            Lệnh chạy nhanh web/Android
+```dotenv
+EXPO_PUBLIC_FIREBASE_API_KEY=apiKey
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=authDomain
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=projectId
+EXPO_PUBLIC_FIREBASE_APP_ID=appId
+EXPO_PUBLIC_FIREBASE_ADMIN_UID=UID_admin
 ```
 
-Thư viện chính: `react`, `react-native`, `react-native-web`, `react-dom`, `expo`, `expo-status-bar`, `expo-image-picker`, `firebase`. Công cụ phát triển: TypeScript, `@types/react`; `package-lock.json` khóa phiên bản cài đặt.
+UID trong `.env` và `database/firestore.rules` phải cùng một tài khoản. Khởi động lại Expo với `--clear` sau khi đổi cấu hình. Không đưa mật khẩu hoặc service-account private key vào mã nguồn; công cụ nhập/xuất dùng đăng nhập email/password qua SDK và tuân thủ Rules.
 
-## 5. Kiểm tra và xử lý lỗi
+## 3. Nhập dữ liệu JSON vào Firestore
+
+Firestore Console **không nhập trực tiếp file JSON tùy ý như Realtime Database**. Repo có công cụ nhập đúng collection và đủ bốn trường.
+
+### Nhập file mẫu của bài tập
+
+**Kiểm tra file trước, chưa ghi dữ liệu:**
+
+```powershell
+npm.cmd run db:import
+```
+
+**Ghi vào Firestore sau khi đã Publish Rules:**
+
+```powershell
+npm.cmd run db:import -- database/products.json --apply
+```
+
+Terminal sẽ hỏi **email admin** và **mật khẩu**. Mật khẩu được ẩn khi nhập; không gửi mật khẩu trong chat hoặc đặt trong code. Nếu tài khoản không trùng UID admin, thao tác dừng.
+
+Công cụ tạo các document `sp01`, `sp02`, `sp03` trong collection `products`, mỗi document có đủ tên, giá, số lượng và ảnh nhúng. Mặc định **bỏ qua ID đã tồn tại**, không xóa document khác. Có thể chạy lại để tiếp tục nếu kết nối bị gián đoạn.
+
+Chỉ khi muốn thay thế toàn bộ bốn trường của những ID trong file:
+
+```powershell
+npm.cmd run db:import -- database/products.json --apply --overwrite
+```
+
+### Chuyển sản phẩm thật từ Realtime Database cũ
+
+1. Firebase Console → **Realtime Database → Data** → menu tại node gốc → **Export JSON**.
+2. Lưu file, ví dụ `realtime-export.json`, vào thư mục dự án. Giữ bản này làm bản sao dữ liệu cũ.
+3. Kiểm tra rồi nhập:
+
+```powershell
+npm.cmd run db:import -- realtime-export.json
+npm.cmd run db:import -- realtime-export.json --apply
+```
+
+Hỗ trợ cả file xuất node gốc dạng `{ "products": { ... } }` và file xuất riêng node products dạng `{ "sp01": { ... } }`. Công cụ giữ nguyên khóa cũ làm Document ID, giữ nguyên ảnh, và kiểm tra **toàn bộ file** trước khi ghi. Nếu có trường thừa/thiếu hoặc ID không hợp lệ, phải sửa dữ liệu trước.
+
+Sau đó vào **Firestore → Data → products**, kiểm tra document. Thử CRUD trên web/Android. Không xóa Realtime Database trước khi đã đối chiếu dữ liệu mới.
+
+## 4. Xuất file cơ sở dữ liệu để nộp bài
+
+Chạy trong terminal riêng, không cần dừng Expo:
+
+```powershell
+npm.cmd run db:export
+```
+
+Nhập email/password admin. Công cụ xuất collection `products` ra **`products-final.json`** tại thư mục hiện tại, gồm ảnh base64 đầy đủ. Mặc định từ chối ghi đè file đã có. Chọn tên khác:
+
+```powershell
+npm.cmd run db:export -- products-nop-bai.json
+```
+
+Hoặc chủ động cho phép thay thế file cũ:
+
+```powershell
+npm.cmd run db:export -- products-final.json --overwrite
+```
+
+Nộp file JSON mới nhất cùng báo cáo và link https://github.com/TanTai08/AppGK. File mẫu `database/products.json` vẫn dùng được để import/nộp nếu bài trình diễn dùng đúng dữ liệu mẫu.
+
+**Ảnh bằng chứng:** Firestore → Data → collection products → chọn một document, chụp rõ đúng bốn trường; có thể thu gọn chuỗi `image` dài. Chụp thêm giao diện web và Pixel 7 sau khi chọn/lưu ảnh. Không có ảnh Console giả trong repo. Báo cáo Word cũ dùng Realtime Database cần đổi mô tả/ảnh sang Firestore trước khi nộp.
+
+## 5. Cấu trúc và quy tắc dữ liệu
+
+```text
+products (collection)
+├── sp01 (document ID, không phải trường)
+│   ├── name: "Cà phê rang"
+│   ├── price: 85000
+│   ├── soluong: 20
+│   └── image: "data:image/png;base64,..."
+├── sp02
+└── sp03
+```
+
+Dấu `...` chỉ để minh họa. File JSON thật trong repo có ảnh base64 đầy đủ. `src/product.mjs` kiểm tra và chọn đúng bốn trường trước khi ghi; `database/firestore.rules` bắt buộc đủ bốn trường và chặn trường thứ năm. Document ID chỉ dùng làm `key` trên giao diện, không được ghi vào document.
+
+- `name`: chuỗi 1–120 ký tự sau khi trim.
+- `price`: số không âm, tối đa 10^12; form cho tối đa 2 chữ số thập phân.
+- `soluong`: số nguyên không âm, tối đa 10^9.
+- `image`: data URI JPG/PNG/WebP, ảnh chọn dưới 700 KB; Rules giới hạn chuỗi 1.000.000 ký tự, phù hợp giới hạn document Firestore 1 MiB.
+
+Ảnh nhúng giúp file JSON có đủ ảnh để nộp mà không cần Storage. Cách này phù hợp bài tập nhỏ; không tối ưu cho kho lớn vì danh sách tải cả ảnh. Tài khoản nằm ở Firebase Authentication, không thêm document users/role vào cơ sở dữ liệu sản phẩm.
+
+## 6. Chức năng ứng dụng
+
+- Đăng ký/đăng nhập/đăng xuất. Chỉ UID admin có quyền xem và thao tác sản phẩm.
+- Thêm, sửa, xóa có xác nhận; chọn và xem trước ảnh trên web/di động.
+- `onSnapshot` nhận thay đổi Firestore, tự cập nhật giao diện và thống kê.
+- Tìm tên tiếng Việt có/không dấu; lọc còn hàng (>0), sắp hết (1–5), hết hàng (0).
+- Sắp xếp tên A–Z, giá tăng/giảm, tồn kho ít trước. Thứ tự mặc định dựa trên Document ID, không biểu thị ngày tạo vì đề không có trường thời gian.
+- Thống kê số mặt hàng, tổng đơn vị tồn kho, tổng `price × soluong`, số mặt hàng cần bổ sung. Thống kê tính trên toàn kho, độc lập bộ lọc.
+
+Tìm kiếm, bộ lọc và thống kê chỉ nằm trong bộ nhớ, không thêm trường hoặc collection phụ vào Firestore.
+
+## 7. File và thư viện liên quan
+
+```text
+App.tsx                       Giao diện đăng nhập, admin và ImagePicker
+src/firebase.ts               Firebase Auth + Cloud Firestore
+src/firebase.config.json      Cấu hình công khai và UID admin
+src/store.tsx                 onSnapshot, addDoc, setDoc, deleteDoc
+src/product.mjs / .d.mts       Kiểm tra và khai báo kiểu bốn trường
+src/inventory.mjs / .d.mts     Tìm kiếm, lọc, sắp xếp, thống kê
+scripts/firestore-data.mjs     Đăng nhập terminal, nhập/xuất JSON
+scripts/firestore-format.mjs   Kiểm tra file migration trước khi ghi
+scripts/setup.mjs             Tạo .env tùy chọn và hướng dẫn
+database/products.json        File CSDL mẫu có ảnh (thư mục database)
+database/firestore.rules      Quyền admin và schema Firestore
+database/firestore.indexes.json Miễn lập chỉ mục trường ảnh
+firebase.json                 Firestore CLI/emulator configuration
+tests/                        Unit tests và Firestore Rules tests
+```
+
+Thư viện: React, React Native, React Native Web, React DOM, Expo SDK 54, `expo-image-picker`, `expo-status-bar`, `firebase`, TypeScript. Không cần cài `firebase-admin`, service account hoặc server riêng.
+
+## 8. Kiểm tra
 
 ```powershell
 npm.cmd run typecheck
@@ -167,28 +207,27 @@ npm.cmd run build:web
 npx.cmd expo export --platform android --output-dir android-export
 ```
 
-Test tự động kiểm tra file JSON đủ bốn trường, ảnh nhúng hợp lệ, chặn số âm/trường thiếu/ảnh lớn và loại metadata trước khi ghi. Đây chưa thay thế kiểm thử Firebase thật: sau thiết lập, thử admin CRUD trên web/Android và tài khoản thường bị từ chối. Có thể dùng Rules Playground trong Console: giả lập UID admin và UID khác, kiểm tra đọc `/products` và ghi `/products/test`, thử payload có trường thứ năm phải bị từ chối.
+Unit tests kiểm tra schema bốn trường, ảnh nhúng, migration JSON, tìm kiếm/bộ lọc và tính thống kê. Không ghi vào Firebase thật.
 
-| Lỗi                                     | Cách xử lý                                                                                                                       |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| PowerShell chặn npm.ps1                 | Dùng `npm.cmd`, `npx.cmd` như các lệnh trên.                                                                                     |
-| `expo/tsconfig.base` đỏ                 | `npm.cmd install`, mở đúng thư mục có package.json, chọn TypeScript: Use Workspace Version rồi Restart TS Server.                |
-| Màn hình Thiết lập Firebase             | Kiểm tra cấu hình mặc định trong src/firebase.config.json và các biến ghi đè trong `.env`; dừng Expo rồi chạy lại với `--clear`. |
-| Tài khoản chưa có quyền admin           | So khớp UID trong Authentication, `.env` và Database Rules; khởi động lại Expo.                                                  |
-| Permission denied                       | Publish đúng Rules vào đúng database/project, đăng nhập tài khoản admin.                                                         |
-| Invalid API key / operation not allowed | Kiểm tra config Web app và bật Email/Password trong Authentication.                                                              |
-| Không thấy ảnh trên Pixel 7             | Kéo ảnh vào emulator trước, cấp quyền thư viện ảnh, chọn JPG/PNG/WebP dưới 700 KB.                                               |
-| Đổi .env nhưng chưa cập nhật            | Dừng Expo và chạy lại `npx.cmd expo start --clear`.                                                                              |
-| Màn hình tối/không nhập được            | Nhấn Back một lần để đóng hộp thoại hệ thống; reload app. Các modal thêm/xóa chỉ được mount khi mở.                              |
-
-### Kiểm thử Database Rules với emulator (tùy chọn)
-
-Cần Java 21+. Không cần tạo tài khoản Firebase hay đăng nhập CLI:
+**Kiểm thử Rules với Firestore Emulator** (cần Java 21+; không cần tài khoản Firebase thật):
 
 ```powershell
-npx.cmd firebase-tools emulators:exec --project demo-appgk --only database "node --test tests/firebase-rules.test.mjs"
+npx.cmd firebase-tools emulators:exec --project demo-appgk --only firestore "node --test tests/firebase-rules.test.mjs"
 ```
 
-Bài test sử dụng namespace demo và token giả chỉ dành cho emulator chạy cục bộ; không gọi database thật. Test kiểm tra admin CRUD, từ chối khách/tài khoản khác, từ chối trường thứ năm/trường thiếu/số lượng âm. `npm test` mặc định bỏ qua bài test này nếu chưa có emulator. Không triển khai rules với UID thử nghiệm lên database thật.
+Test dùng endpoint cục bộ cố định và namespace `demo-appgk`: admin CRUD, ảnh đọc lại, chặn khách/người khác, chặn trường thừa/thiếu, số âm/số lượng lẻ và đường dẫn ngoài products. `npm test` bỏ qua bài này khi không có emulator. Emulator không được kết nối trong ứng dụng production.
 
-Trên native, Firebase Auth hiện dùng bộ nhớ cho phiên; có thể cần đăng nhập lại khi đóng hoàn toàn ứng dụng. Bản web dùng cơ chế lưu phiên mặc định của Firebase.
+## 9. Lỗi thường gặp
+
+| Lỗi                                  | Cách xử lý                                                                                                      |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Permission denied                    | Publish file **firestore.rules** vào tab Rules của Firestore, dùng đúng UID admin. Rules RTDB cũ không áp dụng. |
+| Database not found / API not enabled | Tạo Firestore Native/Standard database `(default)` trong đúng dự án, chờ provisioning hoàn tất.                 |
+| Không thấy dữ liệu RTDB cũ           | Dữ liệu không tự chuyển. Export JSON ở RTDB, rồi chạy db:import theo mục 3.                                     |
+| CLI chỉ kiểm tra, chưa nhập          | Thêm `--apply` sau dấu `--` của npm.                                                                            |
+| Sản phẩm đã tồn tại bị bỏ qua        | Đây là mặc định bảo toàn dữ liệu. Chỉ dùng `--overwrite` nếu muốn thay thế các ID trong file.                   |
+| Mật khẩu nhập không hiện ký tự       | Đây là chế độ ẩn mật khẩu; nhập xong nhấn Enter.                                                                |
+| Tài khoản chưa có quyền admin        | Đối chiếu UID Authentication, config/.env và Firestore Rules; khởi động lại Expo.                               |
+| tsconfig bị đỏ                       | npm.cmd install, mở đúng thư mục package.json, Use Workspace TypeScript rồi Restart TS Server.                  |
+| Ảnh quá lớn                          | Chọn ảnh nhỏ hơn 700 KB; document Firestore tối đa 1 MiB.                                                       |
+| Đổi config nhưng chưa nhận           | Dừng Expo, chạy lại với --clear.                                                                                |

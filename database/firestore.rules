@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.uid == '5PVhYz6bvvNL5tNsID3gaFwnIwW2';
+    }
+    function validProduct() {
+      let p = request.resource.data;
+      return p.keys().hasAll(['name', 'price', 'soluong', 'image'])
+        && p.keys().hasOnly(['name', 'price', 'soluong', 'image'])
+        && p.name is string && p.name.size() > 0 && p.name.size() <= 120
+        && p.price is number && p.price >= 0 && p.price <= 1000000000000
+        && p.soluong is int && p.soluong >= 0 && p.soluong <= 1000000000
+        && p.image is string && p.image.size() <= 1000000
+        && p.image.matches('^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$');
+    }
+    match /products/{productId} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin() && validProduct();
+      allow delete: if isAdmin();
+    }
+  }
+}

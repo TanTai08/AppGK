@@ -11,7 +11,7 @@ if (!existsSync(".env")) {
     "Giữ nguyên .env hiện tại. Các biến FIREBASE không trống sẽ ghi đè cấu hình mặc định.",
   );
 console.log(
-  "Đã có cấu hình công khai Firebase appgk-73564 và UID admin trong mã nguồn. Publish database/database.rules.json trong Firebase Console và import database/products.json nếu chưa có dữ liệu. Không cần backend Node/SQLite.",
+  "Đã có cấu hình công khai Firebase appgk-73564 và UID admin trong mã nguồn. Publish database/firestore.rules trong Firestore Console và dùng npm.cmd run db:import để nhập JSON theo README. Không cần backend Node/SQLite.",
 );
 console.log(
   "Web: npm.cmd run web | Android: npx.cmd expo start --android --localhost --clear",

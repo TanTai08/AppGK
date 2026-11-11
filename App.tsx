@@ -728,8 +728,8 @@ function Root() {
             <Text style={s.modalTitle}>Thiết lập Firebase</Text>
             <Text style={[s.muted, { marginTop: 16 }]}>
               Chưa có cấu hình Firebase. Làm theo README: tạo dự án, bật
-              Authentication và Realtime Database, nhập database/products.json
-              rồi điền .env. Sau đó khởi động lại Expo.
+              Authentication và Cloud Firestore, nhập database/products.json rồi
+              điền .env. Sau đó khởi động lại Expo.
             </Text>
           </View>
         </ScrollView>
@@ -744,7 +744,7 @@ function Root() {
             <Text style={s.modalTitle}>Tài khoản chưa có quyền admin</Text>
             <Text style={[s.muted, { marginVertical: 16 }]}>
               Nhờ người quản trị cấp quyền cho tài khoản này. Nếu bạn đang thiết
-              lập bài tập, sao chép UID vào .env và Database Rules theo README.
+              lập bài tập, sao chép UID vào .env và Firestore Rules theo README.
             </Text>
             <Text selectable style={{ marginBottom: 20 }}>
               {user.uid}
