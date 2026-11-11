@@ -4,6 +4,28 @@
 
 Mỗi sản phẩm chỉ có đúng **`name`, `price`, `soluong`, `image`**. Document ID là khóa ngoài bản ghi; không thêm `id`, `key`, SKU, ngày tạo hay trường thống kê vào dữ liệu.
 
+## Chạy trên iPhone thật — Expo SDK 58
+
+Bản này dùng **Expo SDK 58**, React Native 0.88 và React 19.3. iPhone cần iOS 16.4 trở lên và Expo Go hỗ trợ SDK 58. Giao diện dùng `react-native-safe-area-context` để chừa vùng tai thỏ/home indicator. [Bảng tương thích chính thức](https://docs.expo.dev/versions/v58.0.0/).
+
+Trong VS Code, dừng Metro cũ bằng Ctrl+C, rồi chạy:
+
+```powershell
+cd D:\AppGK\AppGK
+git pull
+npm.cmd install
+npm.cmd run iphone -- --clear
+```
+
+- Kết nối iPhone và máy tính vào cùng Wi-Fi. Dùng Camera iPhone quét QR rồi chọn mở bằng Expo Go.
+- Cho phép Expo Go truy cập **Local Network** khi iOS hỏi. Nếu Windows Firewall hỏi, cho phép Node.js trên mạng Private.
+- Không dùng `--localhost` cho điện thoại thật: tùy chọn này ở hướng dẫn Pixel 7 chỉ dành cho máy ảo trên cùng máy tính.
+- Nếu LAN bị chặn, thử `npx.cmd expo start --tunnel --clear` và làm theo hướng dẫn cài thêm công cụ tunnel nếu CLI yêu cầu.
+- Nếu CLI đề nghị cập nhật Expo Go trên máy ảo Android, chọn bản tương thích SDK 58.
+- Nếu gặp lỗi còn sót phiên bản cũ, dừng Expo, chạy lại `npm.cmd install` và khởi động với `--clear`. Không xóa `package-lock.json` của repo.
+
+Firestore, tài khoản admin và bốn trường `name`, `price`, `soluong`, `image` giữ nguyên. Nâng SDK không tự thay đổi dữ liệu Firebase. Chạy `npx.cmd expo install --check` để kiểm tra thư viện sau khi cài.
+
 ## 1. Thiết lập Firestore trên Firebase Console
 
 Dự án hiện tại: **appgk-73564**. Cấu hình SDK đã có trong `src/firebase.config.json`; không cần tạo dự án mới. Tài khoản admin giữ nguyên UID **5PVhYz6bvvNL5tNsID3gaFwnIwW2**.
@@ -59,7 +81,7 @@ Mở địa chỉ Expo hiển thị, thường là `http://localhost:8081`. Đă
 npx.cmd expo start --android --localhost --clear
 ```
 
-Chọn **Y** nếu được hỏi cài Expo Go phù hợp SDK 54. Kéo một ảnh JPG/PNG nhỏ vào máy ảo hoặc tải ảnh vào Downloads, rồi chọn ảnh trong form sản phẩm. Web và Android cần Internet để truy cập Firestore thật.
+Chọn **Y** nếu được hỏi cài Expo Go phù hợp SDK 58. Kéo một ảnh JPG/PNG nhỏ vào máy ảo hoặc tải ảnh vào Downloads, rồi chọn ảnh trong form sản phẩm. Web và Android cần Internet để truy cập Firestore thật.
 
 Không cần server Node/SQLite, địa chỉ `10.0.2.2:3001` hoặc Realtime Database URL. `EXPO_PUBLIC_FIREBASE_DATABASE_URL` cũ không còn được sử dụng. iOS simulator cần macOS/Xcode và `npm run ios`.
 
@@ -196,7 +218,7 @@ firebase.json                 Firestore CLI/emulator configuration
 tests/                        Unit tests và Firestore Rules tests
 ```
 
-Thư viện: React, React Native, React Native Web, React DOM, Expo SDK 54, `expo-image-picker`, `expo-status-bar`, `firebase`, TypeScript. Không cần cài `firebase-admin`, service account hoặc server riêng.
+Thư viện: React, React Native, React Native Web, React DOM, Expo SDK 58, `expo-image-picker`, `expo-status-bar`, `firebase`, TypeScript. Không cần cài `firebase-admin`, service account hoặc server riêng.
 
 ## 8. Kiểm tra
 

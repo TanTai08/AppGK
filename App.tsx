@@ -4,7 +4,6 @@ import {
   Modal,
   Image,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +13,7 @@ import {
   Platform,
   useWindowDimensions,
 } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { configured } from "./src/firebase";
 import { StatusBar } from "expo-status-bar";
@@ -762,9 +762,11 @@ function Root() {
 }
 export default function App() {
   return (
-    <AppProvider>
-      <Root />
-    </AppProvider>
+    <SafeAreaProvider>
+      <AppProvider>
+        <Root />
+      </AppProvider>
+    </SafeAreaProvider>
   );
 }
 const s = StyleSheet.create({
